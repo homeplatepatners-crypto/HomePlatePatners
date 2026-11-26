@@ -83,6 +83,7 @@ public class AuthController {
     public Map<String, Object> sendOtp(@RequestBody Dtos.OtpSendRequest req) {
         OtpService.Channel ch = OtpService.channel(req.channel());
         String target = target(req.target(), req.phone());
+        checkPurpose(req.purpose(), ch, target);
         String code = otp.send(ch, target);
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("sent", true);
@@ -93,8 +94,49 @@ public class AuthController {
 
     @PostMapping("/otp/verify")
     public Map<String, Object> verifyOtp(@Valid @RequestBody Dtos.OtpVerifyRequest req) {
-        otp.verify(OtpService.channel(req.channel()), target(req.target(), req.phone()), req.code());
+        OtpService.Channel ch = OtpService.channel(req.channel());
+        String target = target(req.target(), req.phone());
+        checkPurpose(req.purpose(), ch, target);
+        otp.verify(ch, target, req.code());
         return Map.of("verified", true);
+    }
+
+    /**
+     * Checked before any OTP is sent, so the user can correct the number/email straight away.
+     * purpose "register": the mobile/email must be new. purpose "reset": the mobile must belong to an account.
+     */
+    private void checkPurpose(String purpose, OtpService.Channel ch, String target) {
+        if (purpose == null || purpose.isBlank()) return;
+        boolean sms = ch == OtpService.Channel.SMS;
+        String value = sms ? digits(target) : target.trim().toLowerCase();
+        boolean exists = sms ? users.existsByPhone(value) : users.existsByEmailIgnoreCase(value);
+        if ("register".equalsIgnoreCase(purpose) && exists) {
+            throw ApiException.badRequest(sms
+                    ? "This mobile number is already registered. Please use a different number, or login / reset your password."
+                    : "This email is already registered. Please use a different email.");
+        }
+        if (("reset".equalsIgnoreCase(purpose) || "login".equalsIgnoreCase(purpose)) && sms && !exists) {
+            throw ApiException.badRequest("No account is registered with this mobile number. Please check the number.");
+        }
+    }
+
+    /** Login with mobile OTP (customers; kitchen partners can use it too). Send the OTP first with purpose "login". */
+    @PostMapping("/login/otp")
+    public Map<String, Object> loginWithOtp(@Valid @RequestBody Dtos.OtpLoginRequest req) {
+        String phone = digits(req.phone());
+        User u = users.findFirstByPhone(phone)
+                .orElseThrow(() -> ApiException.badRequest("No account is registered with this mobile number. Please sign up."));
+        Role expected = "kitchen".equals(req.portal()) ? Role.KITCHEN_OWNER : Role.CUSTOMER;
+        if (u.getRole() != expected) {
+            throw ApiException.forbidden(u.getRole() == Role.KITCHEN_OWNER
+                    ? "This number belongs to a kitchen partner account. Please use the Kitchen Partner login."
+                    : u.getRole() == Role.CUSTOMER ? "This number belongs to a customer account. Please use the Customer login."
+                    : "Please use the Admin login.");
+        }
+        otp.verify(OtpService.Channel.SMS, phone, req.code());
+        otp.consume(OtpService.Channel.SMS, phone);
+        if (u.getStatus() == Enums.UserStatus.SUSPENDED) throw ApiException.forbidden("Your account is suspended. Contact support.");
+        return session(u);
     }
 
     /** Forgot password: verify the registered mobile with OTP, then set a new password. */
@@ -116,10 +158,16 @@ public class AuthController {
     public Map<String, Object> registerCustomer(@Valid @RequestBody Dtos.RegisterCustomerRequest req) {
         String phone = digits(req.phone());
         String email = req.email().trim().toLowerCase();
-        checkNewAccount(req.username(), phone, email);
+        // Username defaults to the mobile number; password is optional because customers log in with OTP.
+        String username = req.username() == null || req.username().isBlank() ? phone : req.username().trim();
+        String password = req.password() == null || req.password().isBlank()
+                ? java.util.UUID.randomUUID().toString() : req.password();
+        if (req.password() != null && !req.password().isBlank() && req.password().length() < 6)
+            throw ApiException.badRequest("Password must be at least 6 characters");
+        checkNewAccount(username, phone, email);
         User u = new User();
-        u.setUsername(req.username().trim());
-        u.setPassword(encoder.encode(req.password()));
+        u.setUsername(username);
+        u.setPassword(encoder.encode(password));
         u.setFullName(req.fullName().trim());
         u.setPhone(phone);
         u.setEmail(email);

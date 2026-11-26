@@ -30,6 +30,8 @@ public class Quotation {
     @Column(precision = 10, scale = 2) private BigDecimal price;
     private Integer prepTimeMinutes;
     @Column(length = 600) private String note;
+    /** Items from the request the kitchen can't provide, or substitutions. */
+    @Column(length = 400) private String unavailableItems;
     private Double distanceKm;
 
     @Enumerated(EnumType.STRING) @Column(length = 20)

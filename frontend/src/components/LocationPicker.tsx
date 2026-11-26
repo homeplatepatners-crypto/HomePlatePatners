@@ -22,7 +22,7 @@ export default function LocationPicker({ variant = 'nav' }: { variant?: 'nav' | 
       <button onClick={() => setOpen(true)}
         className={cx('flex min-w-0 items-center gap-2 text-left', variant === 'hero'
           ? 'w-full rounded-xl bg-cream-50 px-3 py-3 ring-1 ring-cream-300 hover:ring-brand-300'
-          : 'rounded-xl px-2 py-1.5 hover:bg-cream-200')}>
+          : 'w-full rounded-full border border-cream-300 bg-white px-3 py-1.5 shadow-sm hover:border-brand-300')}>
         <MapPin className="h-5 w-5 shrink-0 text-saffron-500" />
         <span className="min-w-0">
           <span className="block truncate text-sm font-bold text-charcoal-900">{location.label}</span>

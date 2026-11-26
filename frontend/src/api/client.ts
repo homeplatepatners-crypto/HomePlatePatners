@@ -6,12 +6,21 @@ import axios, { AxiosError } from 'axios';
  */
 export const api = axios.create({ baseURL: '/api' });
 
-const TOKEN_KEY = 'homeplate.token';
+export type Portal = 'customer' | 'kitchen' | 'admin';
+
+/** Which portal a URL belongs to. Each portal keeps its own login, so a kitchen tab never logs out a customer tab. */
+export function portalOf(path: string = window.location.pathname): Portal {
+  if (/^\/admin(\/|$)/.test(path)) return 'admin';
+  if (/^\/kitchen(\/|$)/.test(path)) return 'kitchen'; // note: /kitchens (customer list) is not the kitchen portal
+  return 'customer';
+}
+
+const keyFor = (p: Portal) => `homeplate.token.${p}`;
 
 export const tokenStore = {
-  get: () => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } },
-  set: (t: string) => { try { localStorage.setItem(TOKEN_KEY, t); } catch { /* ignore */ } },
-  clear: () => { try { localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ } },
+  get: (p: Portal = portalOf()) => { try { return localStorage.getItem(keyFor(p)); } catch { return null; } },
+  set: (t: string, p: Portal = portalOf()) => { try { localStorage.setItem(keyFor(p), t); } catch { /* ignore */ } },
+  clear: (p: Portal = portalOf()) => { try { localStorage.removeItem(keyFor(p)); } catch { /* ignore */ } },
 };
 
 api.interceptors.request.use((config) => {

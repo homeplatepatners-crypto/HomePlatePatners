@@ -1,3 +1,4 @@
+import { KitchenMealPlans } from '../../components/MealPlans';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowRight, BadgeCheck, CalendarDays, CheckCircle2, ChefHat, Clock, FileCheck2, MapPin, Minus, Phone, Plus, ShieldAlert, ShoppingBag, Star, Truck, Video, XCircle } from 'lucide-react';
@@ -72,7 +73,8 @@ export default function KitchenDetail() {
           </div>
 
           {!k.withinDeliveryRange && <div className="flex items-center gap-3 rounded-2xl bg-red-50 p-4 text-sm text-red-700"><XCircle className="h-5 w-5 shrink-0" />This kitchen delivers within {k.deliveryRadiusKm} km. Your location ({location.label}) is outside its range.</div>}
-          {k.withinDeliveryRange && !k.acceptingNow && <div className="flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800"><Clock className="h-5 w-5 shrink-0" />{k.openNow ? 'The kitchen has paused orders for now.' : `Kitchen is closed now. It opens at ${fmtTime(k.openTime)}.`} You can still <Link to="/request" className="font-semibold underline">request a dish</Link> for later.</div>}
+          {k.withinDeliveryRange && k.menuReady === false && k.openNow && k.acceptingOrders && <div className="flex items-center gap-3 rounded-2xl bg-sky-50 p-4 text-sm text-sky-800"><Clock className="h-5 w-5 shrink-0" />Today's menu is being verified by HomePlate - ordering opens shortly. You can still <Link to="/request" className="font-semibold underline">request a dish</Link>.</div>}
+          {k.withinDeliveryRange && !k.acceptingNow && k.menuReady !== false && <div className="flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800"><Clock className="h-5 w-5 shrink-0" />{k.openNow ? 'The kitchen has paused orders for now.' : `Kitchen is closed now. It opens at ${fmtTime(k.openTime)}.`} You can still <Link to="/request" className="font-semibold underline">request a dish</Link> for later.</div>}
 
           {/* MENU */}
           <section>
@@ -121,6 +123,8 @@ export default function KitchenDetail() {
           </section>
 
           {/* ABOUT */}
+          <KitchenMealPlans kitchenId={k.id} kitchenName={k.name} canDeliver={!!k.withinDeliveryRange} />
+
           <section className="card p-6">
             <h2 className="font-display text-xl font-semibold">About the kitchen</h2>
             <div className="mt-4 flex items-center gap-3"><Avatar name={k.ownerName} size="h-12 w-12" /><div><p className="font-semibold">{k.ownerName}</p><p className="text-xs text-charcoal-400">Home chef · member since {fmtDate(t.memberSince)}</p></div></div>

@@ -27,6 +27,13 @@ public class OrderService {
     private final KitchenService kitchenService;
     private final NotificationService notify;
 
+    /** In-app (bell) notifications. */
+    @org.springframework.beans.factory.annotation.Autowired
+    private InboxService inbox;
+
+    @org.springframework.beans.factory.annotation.Autowired @org.springframework.context.annotation.Lazy
+    private DailyMenuService dailyMenu;
+
     public OrderService(FoodOrderRepository orders, KitchenRepository kitchens, MenuItemRepository menu,
                         OfferRepository offers, ReviewRepository reviews, CustomRequestRepository requests,
                         SettingsService settings, KitchenService kitchenService, NotificationService notify) {
@@ -46,6 +53,27 @@ public class OrderService {
     public record Totals(BigDecimal foodTotal, BigDecimal deliveryCharge, BigDecimal platformFee,
                          BigDecimal discount, BigDecimal total, String couponCode, String couponMessage) {}
 
+    /** Active, unexpired offers that customers can use. */
+    public List<Offer> liveOffers() {
+        LocalDate today = LocalDate.now();
+        return offers.findByActiveTrue().stream()
+                .filter(o -> o.getValidTill() == null || !o.getValidTill().isBefore(today))
+                .sorted(Comparator.comparing(Offer::getMinOrder, Comparator.nullsFirst(BigDecimal::compareTo)))
+                .toList();
+    }
+
+    /** Discount an offer gives on this food total (zero when the minimum order isn't met). */
+    public static BigDecimal discountFor(Offer o, BigDecimal foodTotal) {
+        if (o.getMinOrder() != null && foodTotal.compareTo(o.getMinOrder()) < 0) return BigDecimal.ZERO;
+        BigDecimal d = foodTotal.multiply(o.getDiscountPercent()).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        if (o.getMaxDiscount() != null && d.compareTo(o.getMaxDiscount()) > 0) d = o.getMaxDiscount();
+        return d;
+    }
+
+    /**
+     * couponCode: a code -> apply that coupon; blank/null -> automatically apply the best available offer;
+     * "NONE" -> no discount (customer removed the offer).
+     */
     public Totals computeTotals(BigDecimal foodTotal, String couponCode) {
         PlatformSettings s = settings.get();
         BigDecimal delivery = foodTotal.compareTo(s.getFreeDeliveryAbove()) >= 0 ? BigDecimal.ZERO : s.getDeliveryCharge();
@@ -53,7 +81,18 @@ public class OrderService {
         BigDecimal discount = BigDecimal.ZERO;
         String applied = null;
         String msg = null;
-        if (couponCode != null && !couponCode.isBlank()) {
+        if (couponCode == null || couponCode.isBlank()) {
+            Offer best = null; BigDecimal bestD = BigDecimal.ZERO;
+            for (Offer o : liveOffers()) {
+                BigDecimal d = discountFor(o, foodTotal);
+                if (d.compareTo(bestD) > 0) { best = o; bestD = d; }
+            }
+            if (best != null) {
+                discount = bestD;
+                applied = best.getCode();
+                msg = "Best offer applied automatically - you save Rs." + bestD.setScale(0, RoundingMode.HALF_UP);
+            }
+        } else if (!"NONE".equalsIgnoreCase(couponCode.trim())) {
             Optional<Offer> o = offers.findByCodeIgnoreCase(couponCode.trim());
             if (o.isEmpty() || !o.get().isActive()
                     || (o.get().getValidTill() != null && o.get().getValidTill().isBefore(LocalDate.now()))) {
@@ -99,6 +138,9 @@ public class OrderService {
         Kitchen k = kitchens.findById(req.kitchenId()).orElseThrow(() -> ApiException.notFound("Kitchen not found"));
         if (!kitchenService.isVisible(k)) throw ApiException.badRequest("This kitchen is not available right now");
         if (!k.isAcceptingOrders()) throw ApiException.badRequest(k.getName() + " is not accepting orders right now");
+        if (!dailyMenu.ready(k)) {
+            throw ApiException.badRequest(k.getName() + "'s menu for today is awaiting HomePlate verification. Ordering opens once it is verified.");
+        }
         if (k.getMaxDailyOrders() != null && kitchenService.todaysOrderCount(k.getId()) >= k.getMaxDailyOrders()) {
             throw ApiException.badRequest(k.getName() + " has reached today's order limit. Try another kitchen.");
         }
@@ -144,6 +186,8 @@ public class OrderService {
         o.setDiscount(t.discount());
         o.setTotalAmount(t.total());
         o.setCouponCode(t.couponCode());
+        if (t.couponCode() != null) offers.findByCodeIgnoreCase(t.couponCode())
+                .ifPresent(of -> of.setUsageCount(java.util.Optional.ofNullable(of.getUsageCount()).orElse(0) + 1));
         if (t.couponCode() != null) offers.findByCodeIgnoreCase(t.couponCode()).ifPresent(of -> of.setUsageCount(of.getUsageCount() + 1));
         applyCommission(o);
         if (req.mealSlot() != null) o.setMealSlot(req.mealSlot());
@@ -199,6 +243,39 @@ public class OrderService {
     private void notifyKitchenNewOrder(FoodOrder o) {
         notify.sendSms(o.getKitchen().getOwner().getPhone(),
                 "HomePlate: New order " + o.getOrderNumber() + " for Rs." + o.getTotalAmount() + ". Open your dashboard to accept.");
+        inbox.push(o.getKitchen().getOwner(), "ORDER", "New order " + o.getOrderNumber(),
+                "Rs." + o.getTotalAmount() + " - " + o.getItems().size() + " item(s). Accept it from your live order board.", "/kitchen/orders");
+        boolean confirmed = o.getStatus() == OrderStatus.CONFIRMED;
+        inbox.push(o.getCustomer(), "ORDER", confirmed ? "Order confirmed" : "Order placed",
+                o.getOrderNumber() + " from " + o.getKitchen().getName()
+                        + (confirmed ? " is confirmed and will be cooked fresh." : " was sent to the kitchen. You'll be notified when they accept it."),
+                "/orders/" + o.getId());
+    }
+
+    private static String statusMessage(FoodOrder o, OrderStatus s) {
+        String k = o.getKitchen().getName();
+        return switch (s) {
+            case CONFIRMED -> k + " accepted your order. Cooking starts soon.";
+            case PREPARING -> k + " is cooking your food now.";
+            case READY -> "Your food is packed and ready to leave " + k + ".";
+            case OUT_FOR_DELIVERY -> "Your order is on the way! Track it live.";
+            case DELIVERED -> "Delivered. Enjoy your meal - tap to rate " + k + ".";
+            case REJECTED -> k + " couldn't take this order" + (o.getCancelReason() == null ? "." : ": " + o.getCancelReason()) + " Any payment is refunded.";
+            case CANCELLED -> "Order cancelled" + (o.getCancelReason() == null ? "." : ": " + o.getCancelReason());
+            default -> "Order status: " + s.name().replace('_', ' ').toLowerCase();
+        };
+    }
+
+    /** Live location from the kitchen's delivery person (self-delivery), shown on the customer's tracking map. */
+    @Transactional
+    public FoodOrder updateRiderLocation(Kitchen kitchen, Long orderId, double lat, double lng) {
+        FoodOrder o = orders.findById(orderId).orElseThrow(() -> ApiException.notFound("Order not found"));
+        if (!o.getKitchen().getId().equals(kitchen.getId())) throw ApiException.forbidden("Not your order");
+        if (o.getStatus() != OrderStatus.OUT_FOR_DELIVERY) throw ApiException.badRequest("Live location is shared only while the order is out for delivery");
+        o.setRiderLatitude(lat);
+        o.setRiderLongitude(lng);
+        o.setRiderUpdatedAt(LocalDateTime.now());
+        return o;
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -238,6 +315,14 @@ public class OrderService {
         }
         notify.sendSms(o.getCustomer().getPhone(), "HomePlate: Your order " + o.getOrderNumber() + " is now "
                 + next.name().replace('_', ' ').toLowerCase() + ".");
+        inbox.push(o.getCustomer(), "ORDER", o.getOrderNumber() + " - " + next.name().replace('_', ' ').toLowerCase(),
+                statusMessage(o, next), "/orders/" + o.getId());
+        if (next == OrderStatus.OUT_FOR_DELIVERY && o.getKitchen().getLatitude() != null) {
+            // Start the live marker at the kitchen until the delivery person's phone sends its first position.
+            o.setRiderLatitude(o.getKitchen().getLatitude());
+            o.setRiderLongitude(o.getKitchen().getLongitude());
+            o.setRiderUpdatedAt(now);
+        }
         return o;
     }
 
@@ -254,6 +339,7 @@ public class OrderService {
         if (o.getCustomRequestId() != null) {
             requests.findById(o.getCustomRequestId()).ifPresent(r -> r.setStatus(Enums.RequestStatus.CANCELLED));
         }
+        inbox.push(o.getKitchen().getOwner(), "ORDER", o.getOrderNumber() + " cancelled by customer", o.getCancelReason(), "/kitchen/orders");
         return o;
     }
 

@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
-import { Loader2, X, Inbox, AlertTriangle, type LucideIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Loader2, X, Inbox, AlertTriangle, type LucideIcon } from 'lucide-react';
 
 export function cx(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' '); }
 
@@ -203,4 +204,19 @@ export function Avatar({ name, src, size = 'h-9 w-9' }: { name?: string; src?: s
   return src
     ? <img src={src} alt={name} className={cx(size, 'rounded-full object-cover')} />
     : <span className={cx(size, 'inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-bold text-white')}>{initials}</span>;
+}
+
+/** In-app back arrow: goes to the previous page, or to `fallback` when the page was opened directly. */
+export function BackButton({ fallback = '/', label = 'Back', className = '' }: { fallback?: string; label?: string; className?: string }) {
+  const navigate = useNavigate();
+  const go = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) navigate(-1); else navigate(fallback);
+  };
+  return (
+    <button type="button" onClick={go} aria-label={label}
+      className={cx('inline-flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-sm font-semibold text-charcoal-600 transition hover:bg-cream-200 hover:text-charcoal-900', className)}>
+      <ArrowLeft className="h-4 w-4" /><span className="hidden sm:inline">{label}</span>
+    </button>
+  );
 }

@@ -47,7 +47,7 @@ public class CustomerController {
         User u = current.user();
         if (p.fullName() != null && !p.fullName().isBlank()) u.setFullName(p.fullName());
         if (p.email() != null) u.setEmail(p.email());
-        if (p.phone() != null) u.setPhone(p.phone());
+        // Mobile number is verified by OTP at sign-up and can't be changed here.
         if (p.address() != null) u.setAddress(p.address());
         if (p.area() != null) u.setArea(p.area());
         if (p.latitude() != null) u.setLatitude(p.latitude());

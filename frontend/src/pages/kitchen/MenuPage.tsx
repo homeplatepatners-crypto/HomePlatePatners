@@ -7,6 +7,7 @@ import type { MealType, MenuItem } from '../../types';
 import FileUpload from '../../components/FileUpload';
 import { Badge, ConfirmDialog, EmptyState, ErrorState, Field, Modal, PageHeader, PageLoader, Spinner, Tabs, Toggle, VegMark } from '../../components/ui';
 import { mealLabel, rupee } from '../../utils/format';
+import DailyMenuBanner from './DailyMenuBanner';
 
 const MEALS: MealType[] = ['BREAKFAST', 'LUNCH', 'SNACKS', 'DINNER'];
 const CATEGORIES = ['Meals', 'Variety Rice', 'Biryani', 'Gravy', 'Tiffin', 'Thali', 'Non-Veg', 'Starters', 'Snacks', 'Sweets'];
@@ -18,6 +19,7 @@ export default function MenuPage() {
   const [edit, setEdit] = useState<Partial<MenuItem> | null>(null);
   const [del, setDel] = useState<MenuItem | null>(null);
   const [busy, setBusy] = useState(false);
+  const [menuRev, setMenuRev] = useState(0);
 
   if (loading) return <PageLoader />;
   if (error || !data) return <ErrorState message={error ?? ''} onRetry={reload} />;
@@ -32,13 +34,13 @@ export default function MenuPage() {
       const payload = { ...edit, offerPrice: edit.offerPrice || null };
       if (edit.id) await api.put(`/kitchen/menu/${edit.id}`, payload); else await api.post('/kitchen/menu', payload);
       toast.success(edit.id ? 'Item updated' : 'Item added to menu');
-      setEdit(null); reload(true);
+      setEdit(null); reload(true); setMenuRev((n) => n + 1);
     } catch (e) { toast.error(errMsg(e)); } finally { setBusy(false); }
   };
 
   const toggle = async (i: MenuItem, available: boolean) => {
     setData(data.map((x) => (x.id === i.id ? { ...x, available } : x)));
-    try { await api.patch(`/kitchen/menu/${i.id}/availability`, { available, quantityAvailable: available && (i.quantityAvailable ?? 0) <= 0 ? 20 : i.quantityAvailable }); reload(true); }
+    try { setMenuRev((n) => n + 1); await api.patch(`/kitchen/menu/${i.id}/availability`, { available, quantityAvailable: available && (i.quantityAvailable ?? 0) <= 0 ? 20 : i.quantityAvailable }); reload(true); }
     catch (e) { toast.error(errMsg(e)); reload(true); }
   };
 
@@ -50,6 +52,7 @@ export default function MenuPage() {
 
   return (
     <div>
+      <DailyMenuBanner refreshKey={menuRev} />
       <PageHeader title="Daily menu" subtitle="Publish what you're cooking today. Customers only see available items."
         actions={<button className="btn-primary" onClick={() => setEdit(blank(tab === 'ALL' ? 'LUNCH' : tab))}><Plus className="h-4 w-4" />Add food item</button>} />
       <Tabs value={tab} onChange={setTab} tabs={[{ value: 'ALL' as const, label: 'All items', count: data.length }, ...MEALS.map((m) => ({ value: m, label: mealLabel[m], count: data.filter((i) => i.mealType === m).length }))]} />

@@ -49,9 +49,9 @@ export default function KitchenRegister() {
           <div><label className="label">Owner name</label><input className="input" required value={f.fullName} onChange={set('fullName')} placeholder="Your full name" /></div>
           <div><label className="label">Kitchen name</label><input className="input" required value={f.kitchenName} onChange={set('kitchenName')} placeholder="e.g. Amma's Kitchen" /></div>
         </div>
-        <OtpField channel="sms" value={phone} setValue={setPhone} verified={phoneOk} setVerified={setPhoneOk} />
+        <OtpField channel="sms" purpose="register" value={phone} setValue={setPhone} verified={phoneOk} setVerified={setPhoneOk} />
         {emailNeeded
-          ? <OtpField channel="email" value={email} setValue={setEmail} verified={emailOk} setVerified={setEmailOk} />
+          ? <OtpField channel="email" purpose="register" value={email} setValue={setEmail} verified={emailOk} setVerified={setEmailOk} />
           : <div><label className="label">Email</label><input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value.trim())} placeholder="you@example.com" /></div>}
         <div className="grid grid-cols-2 gap-3">
           <div><label className="label">Username</label><input className="input" required minLength={3} autoComplete="username" value={f.username} onChange={set('username')} /></div>

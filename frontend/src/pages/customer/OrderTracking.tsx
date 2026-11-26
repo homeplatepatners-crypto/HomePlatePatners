@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Bike, Clock, Flag, MapPin, Phone, Receipt, Star } from 'lucide-react';
+import { Bike, Clock, Flag, MapPin, Navigation, Phone, Receipt, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api, errMsg } from '../../api/client';
 import { useFetch } from '../../components/useFetch';
@@ -10,6 +10,7 @@ import Timeline from '../../components/Timeline';
 import { ConfirmDialog, ErrorState, Field, Modal, PageLoader, Spinner, VegMark, cx } from '../../components/ui';
 import { fmtDateTime, fmtTime, rupee, titleCase } from '../../utils/format';
 import PaymentModal from './PaymentModal';
+import { LiveTrackingMap, distanceKm } from '../../components/Maps';
 
 const STEPS = [
   { key: 'PLACED', label: 'Order placed', time: (o: Order) => o.createdAt },
@@ -30,7 +31,8 @@ export default function OrderTracking() {
 
   useEffect(() => {
     if (!o || ['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)) return;
-    const t = setInterval(() => reload(true), 10000); // live status refresh
+    // Live refresh: every 5 s while the food is on the way (rider position), otherwise every 10 s.
+    const t = setInterval(() => reload(true), o.status === 'OUT_FOR_DELIVERY' ? 5000 : 10000);
     return () => clearInterval(t);
   }, [o, reload]);
 
@@ -52,8 +54,7 @@ export default function OrderTracking() {
 
   return (
     <div className="container-x py-8">
-      <Link to="/orders" className="inline-flex items-center gap-1 text-sm font-semibold text-charcoal-500 hover:text-brand-700"><ArrowLeft className="h-4 w-4" />My orders</Link>
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold text-charcoal-400">Order {o.orderNumber} · {fmtDateTime(o.createdAt)}</p>
           <h1 className="mt-1 font-display text-3xl font-semibold">{o.kitchen.name}</h1>
@@ -77,6 +78,8 @@ export default function OrderTracking() {
           <Timeline steps={STEPS.map((s) => ({ key: s.key, label: s.label, time: s.time(o) }))} currentIndex={failed ? failIdx : idx} failed={failed ? titleCase(o.status) : undefined} />
         </div></div>
       </div>
+
+      {['CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY'].includes(o.status) && <LiveTracking o={o} />}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="card p-5">
@@ -163,5 +166,36 @@ function ComplaintModal({ open, onClose, orderId }: { open: boolean; onClose: ()
         <Field label="Describe the issue"><textarea className="input min-h-[100px]" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
       </div>
     </Modal>
+  );
+}
+
+/** Live delivery tracking card (like food-delivery apps): moving rider marker, remaining distance and ETA. */
+function LiveTracking({ o }: { o: Order }) {
+  const onTheWay = o.status === 'OUT_FOR_DELIVERY';
+  const home = { lat: o.deliveryLatitude, lng: o.deliveryLongitude };
+  const rider = onTheWay && o.riderLatitude != null ? { lat: o.riderLatitude, lng: o.riderLongitude } : null;
+  const left = rider && home.lat != null && home.lng != null ? distanceKm(rider.lat!, rider.lng!, home.lat, home.lng) : null;
+  const etaMin = left != null ? Math.max(1, Math.round((left / 18) * 60) + 1) : null; // ~18 km/h city two-wheeler speed
+  const updated = o.riderUpdatedAt ? Math.round((Date.now() - new Date(o.riderUpdatedAt).getTime()) / 1000) : null;
+  return (
+    <div className="card mt-6 overflow-hidden">
+      <div className="flex flex-wrap items-center gap-3 border-b border-cream-200 p-4">
+        <Navigation className="h-5 w-5 text-saffron-500" />
+        <div className="flex-1">
+          <p className="font-semibold">{onTheWay ? 'Live delivery tracking' : 'Your order route'}</p>
+          <p className="text-xs text-charcoal-500">
+            {onTheWay
+              ? (left != null ? `${left.toFixed(1)} km away · arriving in about ${etaMin} min` : 'Waiting for the delivery partner\'s location…')
+              : 'Live tracking starts as soon as your food is out for delivery.'}
+          </p>
+        </div>
+        {onTheWay && updated != null && (
+          <span className="flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-brand-500" />{updated < 60 ? 'Live' : `Updated ${Math.round(updated / 60)} min ago`}
+          </span>
+        )}
+      </div>
+      <LiveTrackingMap kitchen={{ lat: o.kitchen.latitude, lng: o.kitchen.longitude, name: o.kitchen.name }} home={home} rider={rider} height="h-72" />
+    </div>
   );
 }

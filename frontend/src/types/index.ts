@@ -17,7 +17,7 @@ export interface Kitchen {
   address?: string; pincode?: string; latitude?: number; longitude?: number; deliveryRadiusKm?: number;
   openTime?: string; closeTime?: string; workingDays?: string; breakfastAvailable: boolean; lunchAvailable: boolean;
   dinnerAvailable: boolean; maxDailyOrders?: number; selfDelivery: boolean; acceptingOrders: boolean;
-  avgPrepMinutes?: number; todaySpecial?: string; idProofType?: string; idProofNumber?: string; idProofUrl?: string;
+  avgPrepMinutes?: number; todaySpecial?: string; idProofType?: string; idProofNumber?: string; idProofUrl?: string; idProofBackUrl?: string;
   idProofStatus: string; fssaiNumber?: string; fssaiType?: string; fssaiCertificateUrl?: string; fssaiStatus: string;
   status: KitchenStatus; adminRemarks?: string; rating: number; ratingCount: number; onboardingStep: number;
   createdAt: string; submittedAt?: string; approvedAt?: string; lastInspectionAt?: string; phoneVerified?: boolean;
@@ -26,7 +26,7 @@ export interface Kitchen {
 export interface KitchenCard {
   id: number; name: string; ownerName: string; coverImage?: string; area?: string; cuisines: string[];
   foodType: FoodType; rating: number; ratingCount: number; distanceKm?: number; etaMinutes: number;
-  openTime?: string; closeTime?: string; openNow: boolean; acceptingOrders: boolean; acceptingNow: boolean;
+  openTime?: string; closeTime?: string; openNow: boolean; acceptingOrders: boolean; acceptingNow: boolean; menuReady?: boolean; menuStatus?: string;
   todaySpecial?: string; verified: boolean; fssaiVerified: boolean; lastVideoVerifiedOn?: string;
   minPrice?: number; itemCount: number; deliveryRadiusKm?: number; latitude?: number; longitude?: number;
 }
@@ -66,6 +66,7 @@ export interface Order {
   deliveryAddress?: string; deliveryArea?: string; distanceKm?: number; mealSlot?: MealType; notes?: string;
   cancelReason?: string; createdAt: string; estimatedDeliveryAt?: string; confirmedAt?: string; preparingAt?: string;
   readyAt?: string; outForDeliveryAt?: string; deliveredAt?: string; reviewed: boolean;
+  riderLatitude?: number; riderLongitude?: number; riderUpdatedAt?: string; deliveryLatitude?: number; deliveryLongitude?: number;
 }
 
 export interface CustomRequest {
@@ -77,7 +78,7 @@ export interface CustomRequest {
 }
 
 export interface Quotation {
-  id: number; request: CustomRequest; kitchen: Kitchen; price: number; prepTimeMinutes: number; note?: string;
+  id: number; request: CustomRequest; kitchen: Kitchen; price: number; prepTimeMinutes: number; note?: string; unavailableItems?: string;
   distanceKm?: number; status: 'PENDING' | 'SELECTED' | 'NOT_SELECTED' | 'DECLINED'; createdAt: string;
 }
 
@@ -105,7 +106,7 @@ export interface Offer { id: number; code: string; description?: string; discoun
 export interface PlatformSettings {
   freeTrialDays: number; monthlyPrice: number; annualPrice: number; commissionPercent: number; deliveryCharge: number;
   platformFee: number; freeDeliveryAbove: number; discoveryRadiusKm: number; customLunchCutoff: string;
-  customDinnerCutoff: string; gracePeriodDays: number; requireDailyVideo: boolean; supportPhone: string; supportEmail: string;
+  customDinnerCutoff: string; gracePeriodDays: number; requireDailyVideo: boolean; requireMenuVerification?: boolean; supportPhone: string; supportEmail: string;
 }
 
 export interface PublicConfig {

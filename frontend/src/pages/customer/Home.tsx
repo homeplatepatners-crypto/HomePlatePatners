@@ -1,3 +1,4 @@
+import { OffersStrip } from '../../components/Offers';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, BadgeCheck, ChefHat, Clock, FileCheck2, HeartHandshake, MapPin, MessageSquareQuote, Search, ShieldCheck, Sparkles, Star, Video } from 'lucide-react';
@@ -79,6 +80,11 @@ export default function Home() {
       </section>
 
       {/* CATEGORIES */}
+      <section className="container-x mt-8">
+        <h2 className="mb-3 font-display text-xl font-semibold">Offers for you</h2>
+        <OffersStrip />
+      </section>
+
       <section className="container-x mt-10">
         <h2 className="font-display text-2xl font-semibold sm:text-3xl">Discover homemade food</h2>
         <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">

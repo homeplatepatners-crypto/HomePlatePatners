@@ -15,17 +15,21 @@ public final class Dtos {
     public record LoginRequest(@NotBlank String username, @NotBlank String password, String portal) {}
 
     /** channel: "sms" (target = 10-digit mobile) or "email" (target = email address). */
-    public record OtpSendRequest(String channel, String target, String phone) {}
+    /** purpose (optional): "register" = must be a new number/email, "reset" = must be a registered number. */
+    public record OtpSendRequest(String channel, String target, String phone, String purpose) {}
 
-    public record OtpVerifyRequest(String channel, String target, String phone, @NotBlank String code) {}
+    public record OtpVerifyRequest(String channel, String target, String phone, @NotBlank String code, String purpose) {}
 
+    /** Customers sign up with just name + mobile (OTP) + email. Username/password are optional (login is by OTP). */
     public record RegisterCustomerRequest(
             @NotBlank @Size(max = 120) String fullName,
-            @NotBlank @Size(min = 3, max = 80) String username,
-            @NotBlank @Size(min = 6, max = 100) String password,
+            @Size(max = 80) String username,
+            @Size(max = 100) String password,
             @NotBlank String phone,
             @NotBlank @Email String email,
             String hometown) {}
+
+    public record OtpLoginRequest(@NotBlank String phone, @NotBlank String code, String portal) {}
 
     public record RegisterKitchenRequest(
             @NotBlank @Size(max = 120) String fullName,
@@ -81,7 +85,8 @@ public final class Dtos {
             Double latitude,
             Double longitude) {}
 
-    public record QuoteRequest(@NotNull @DecimalMin("1") BigDecimal price, @NotNull @Min(5) Integer prepTimeMinutes, String note) {}
+    public record QuoteRequest(@NotNull @DecimalMin("1") BigDecimal price, @NotNull @Min(5) Integer prepTimeMinutes, String note,
+                               @Size(max = 400) String unavailableItems) {}
 
     public record ReviewRequest(@NotNull @Min(1) @Max(5) Integer rating, @Size(max = 1000) String comment) {}
 

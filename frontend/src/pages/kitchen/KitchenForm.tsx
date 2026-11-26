@@ -1,5 +1,6 @@
 import FileUpload from '../../components/FileUpload';
 import { MapPicker } from '../../components/Maps';
+import { useAreaList } from '../../components/LocationPicker';
 import { Field, Toggle, VegMark, cx } from '../../components/ui';
 import type { Kitchen } from '../../types';
 
@@ -8,7 +9,7 @@ export type KitchenFormState = {
   cuisines: string[]; foodType: 'VEG' | 'NON_VEG' | 'BOTH';
   state: string; district: string; city: string; area: string; address: string; pincode: string;
   latitude: number | null; longitude: number | null; deliveryRadiusKm: number;
-  idProofType: string; idProofNumber: string; idProofUrl: string; fssaiNumber: string; fssaiType: string; fssaiCertificateUrl: string;
+  idProofType: string; idProofNumber: string; idProofUrl: string; idProofBackUrl: string; fssaiNumber: string; fssaiType: string; fssaiCertificateUrl: string;
   openTime: string; closeTime: string; workingDays: string[]; breakfastAvailable: boolean; lunchAvailable: boolean; dinnerAvailable: boolean;
   maxDailyOrders: number; selfDelivery: boolean; avgPrepMinutes: number; todaySpecial: string;
 };
@@ -25,7 +26,7 @@ export function toForm(k: Kitchen): KitchenFormState {
     state: k.state ?? 'Tamil Nadu', district: k.district ?? 'Coimbatore', city: k.city ?? 'Coimbatore', area: k.area ?? '',
     address: k.address ?? '', pincode: k.pincode ?? '', latitude: k.latitude ?? null, longitude: k.longitude ?? null,
     deliveryRadiusKm: k.deliveryRadiusKm ?? 5, idProofType: k.idProofType ?? 'Aadhaar', idProofNumber: k.idProofNumber ?? '',
-    idProofUrl: k.idProofUrl ?? '', fssaiNumber: k.fssaiNumber ?? '', fssaiType: k.fssaiType ?? 'FSSAI Basic Registration',
+    idProofUrl: k.idProofUrl ?? '', idProofBackUrl: k.idProofBackUrl ?? '', fssaiNumber: k.fssaiNumber ?? '', fssaiType: k.fssaiType ?? 'FSSAI Basic Registration',
     fssaiCertificateUrl: k.fssaiCertificateUrl ?? '', openTime: (k.openTime ?? '07:00').slice(0, 5), closeTime: (k.closeTime ?? '21:00').slice(0, 5),
     workingDays: (k.workingDays ?? 'MON,TUE,WED,THU,FRI,SAT').split(','), breakfastAvailable: k.breakfastAvailable ?? true,
     lunchAvailable: k.lunchAvailable ?? true, dinnerAvailable: k.dinnerAvailable ?? true, maxDailyOrders: k.maxDailyOrders ?? 40,
@@ -86,7 +87,17 @@ export function KitchenInfoSection({ f, set }: Props) {
   );
 }
 
+/** Straight-line distance in km (same formula as the backend). */
+function km(aLat: number, aLng: number, bLat: number, bLng: number) {
+  const r = (d: number) => (d * Math.PI) / 180;
+  const h = Math.sin(r(bLat - aLat) / 2) ** 2 + Math.cos(r(aLat)) * Math.cos(r(bLat)) * Math.sin(r(bLng - aLng) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
 export function LocationSection({ f, set }: Props) {
+  const areaPoint = useAreaList().find((a) => a.name === f.area);
+  const away = areaPoint && f.latitude != null && f.longitude != null ? km(areaPoint.lat, areaPoint.lng, f.latitude, f.longitude) : null;
+  const useArea = () => { if (areaPoint) { set('latitude', areaPoint.lat); set('longitude', areaPoint.lng); } };
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -101,6 +112,16 @@ export function LocationSection({ f, set }: Props) {
       <Field label="Full address"><textarea className="input min-h-[70px]" value={f.address} onChange={(e) => set('address', e.target.value)} placeholder="Door no, street, landmark" /></Field>
       <Field label="GPS location (pin your kitchen)">
         <MapPicker value={{ lat: f.latitude, lng: f.longitude }} radiusKm={f.deliveryRadiusKm} onChange={(lat, lng) => { set('latitude', lat); set('longitude', lng); }} />
+        {areaPoint && f.latitude == null && (
+          <button type="button" onClick={useArea} className="mt-2 text-xs font-semibold text-brand-700 hover:underline">Start the pin at {f.area} and adjust it to your exact door →</button>
+        )}
+        {away != null && away > 2 && (
+          <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <b>Check your pin:</b> it is <b>{away.toFixed(1)} km</b> from {f.area}. Customers only see kitchens within 5 km of them,
+            so a wrong pin hides your kitchen from {f.area} customers.{' '}
+            <button type="button" onClick={useArea} className="font-semibold underline">Move pin to {f.area}</button>
+          </div>
+        )}
       </Field>
       <Field label={`Delivery radius: ${f.deliveryRadiusKm} km`} hint="You deliver yourself, so choose a distance you're comfortable with (max 10 km). Customers see kitchens within 5 km.">
         <input type="range" min={1} max={10} step={0.5} value={f.deliveryRadiusKm} onChange={(e) => set('deliveryRadiusKm', Number(e.target.value))} className="w-full accent-green-700" />
@@ -109,25 +130,75 @@ export function LocationSection({ f, set }: Props) {
   );
 }
 
+/** Identity document rules per type (kept in sync with backend DocumentRules.java). */
+export const ID_TYPES: Record<string, { label: string; placeholder: string; pattern: RegExp; format: string; back: boolean; frontLabel: string; backLabel?: string; maxLen: number }> = {
+  Aadhaar: { label: 'Aadhaar number', placeholder: '1234 5678 9012', pattern: /^[2-9]\d{11}$/, format: '12 digits', back: true, frontLabel: 'Aadhaar - front side', backLabel: 'Aadhaar - back side (address)', maxLen: 14 },
+  PAN: { label: 'PAN number', placeholder: 'ABCDE1234F', pattern: /^[A-Z]{5}\d{4}[A-Z]$/, format: '5 letters, 4 digits, 1 letter', back: false, frontLabel: 'PAN card', maxLen: 10 },
+  'Voter ID': { label: 'Voter ID (EPIC) number', placeholder: 'ABC1234567', pattern: /^[A-Z]{3}\d{7}$/, format: '3 letters + 7 digits', back: true, frontLabel: 'Voter ID - front', backLabel: 'Voter ID - back', maxLen: 10 },
+  'Driving Licence': { label: 'Driving licence number', placeholder: 'TN01 20190001234', pattern: /^[A-Z]{2}\d{2}\d{11}$/, format: 'State code + 13 digits, e.g. TN0120190001234', back: true, frontLabel: 'Licence - front', backLabel: 'Licence - back', maxLen: 18 },
+  Passport: { label: 'Passport number', placeholder: 'A1234567', pattern: /^[A-Z]\d{7}$/, format: '1 letter + 7 digits', back: false, frontLabel: 'Passport - photo page', maxLen: 8 },
+};
+export const FSSAI_TYPES = ['FSSAI Basic Registration', 'FSSAI State Licence', 'Applied - pending'];
+export const normId = (v: string) => v.replace(/[\s-]/g, '').toUpperCase();
+export const fssaiRequired = (t: string) => !t.startsWith('Applied');
+
+/** Returns the first problem with the documents step, or null when it is complete. */
+export function complianceError(f: KitchenFormState): string | null {
+  const t = ID_TYPES[f.idProofType];
+  if (!t) return 'Select an ID proof type';
+  if (!t.pattern.test(normId(f.idProofNumber))) return `Enter a valid ${t.label} (${t.format})`;
+  if (!f.idProofUrl) return `Upload ${t.frontLabel}`;
+  if (t.back && !f.idProofBackUrl) return `Upload ${t.backLabel}`;
+  if (fssaiRequired(f.fssaiType)) {
+    if (!/^[12]\d{13}$/.test(f.fssaiNumber)) return 'Enter the 14-digit FSSAI number';
+    if (!f.fssaiCertificateUrl) return 'Upload the FSSAI certificate';
+  }
+  return null;
+}
+
 export function ComplianceSection({ f, set }: Props) {
+  const t = ID_TYPES[f.idProofType] ?? ID_TYPES.Aadhaar;
+  const idOk = t.pattern.test(normId(f.idProofNumber));
+  const fssaiNeeded = fssaiRequired(f.fssaiType);
+  const fssaiOk = /^[12]\d{13}$/.test(f.fssaiNumber);
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-sky-50 p-4 text-sm text-sky-800">Identity verification and food safety verification are reviewed separately. Your documents are visible only to the HomePlate verification team.</div>
       <div>
         <h3 className="mb-3 font-semibold">1. Identity proof</h3>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="ID type"><select className="input" value={f.idProofType} onChange={(e) => set('idProofType', e.target.value)}>{['Aadhaar', 'PAN', 'Voter ID', 'Driving Licence', 'Passport'].map((t) => <option key={t}>{t}</option>)}</select></Field>
-          <Field label="ID number"><input className="input" value={f.idProofNumber} onChange={(e) => set('idProofNumber', e.target.value)} placeholder="XXXX XXXX 1234" /></Field>
+          <Field label="ID proof type">
+            <select className="input" value={f.idProofType} onChange={(e) => { set('idProofType', e.target.value); set('idProofNumber', ''); set('idProofBackUrl', ''); }}>
+              {Object.keys(ID_TYPES).map((k) => <option key={k}>{k}</option>)}
+            </select>
+          </Field>
+          <Field label={t.label} hint={`Format: ${t.format}`}>
+            <input className={cx('input uppercase', f.idProofNumber && !idOk && 'border-red-400')} maxLength={t.maxLen} value={f.idProofNumber}
+              onChange={(e) => set('idProofNumber', f.idProofType === 'Aadhaar' ? e.target.value.replace(/[^\d ]/g, '') : e.target.value.toUpperCase())}
+              placeholder={t.placeholder} />
+            {f.idProofNumber && !idOk && <p className="mt-1 text-xs text-red-600">Invalid format - expected {t.format}</p>}
+          </Field>
         </div>
-        <FileUpload className="mt-3" kind="document" value={f.idProofUrl} onChange={(u) => set('idProofUrl', u)} label="Upload ID proof (photo or PDF)" aspect="aspect-[3/1]" />
+        <div className={cx('mt-3 grid gap-3', t.back && 'sm:grid-cols-2')}>
+          <div><p className="label">{t.frontLabel}</p>
+            <FileUpload kind="document" value={f.idProofUrl} onChange={(u) => set('idProofUrl', u)} label={`Upload ${t.frontLabel}`} aspect="aspect-[16/10]" /></div>
+          {t.back && <div><p className="label">{t.backLabel}</p>
+            <FileUpload kind="document" value={f.idProofBackUrl} onChange={(u) => set('idProofBackUrl', u)} label={`Upload ${t.backLabel}`} aspect="aspect-[16/10]" /></div>}
+        </div>
       </div>
       <div>
-        <h3 className="mb-3 font-semibold">2. FSSAI registration / licence <span className="text-xs font-normal text-charcoal-400">(where applicable)</span></h3>
+        <h3 className="mb-3 font-semibold">2. FSSAI registration / licence</h3>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Type"><select className="input" value={f.fssaiType} onChange={(e) => set('fssaiType', e.target.value)}>{['FSSAI Basic Registration', 'FSSAI State Licence', 'Applied - pending'].map((t) => <option key={t}>{t}</option>)}</select></Field>
-          <Field label="FSSAI number"><input className="input" maxLength={14} value={f.fssaiNumber} onChange={(e) => set('fssaiNumber', e.target.value.replace(/\D/g, ''))} placeholder="14-digit number" /></Field>
+          <Field label="Type"><select className="input" value={f.fssaiType} onChange={(e) => set('fssaiType', e.target.value)}>{FSSAI_TYPES.map((x) => <option key={x}>{x}</option>)}</select></Field>
+          <Field label={`FSSAI number${fssaiNeeded ? '' : ' (if available)'}`} hint="14 digits, starts with 1 or 2">
+            <input className={cx('input', f.fssaiNumber && !fssaiOk && 'border-red-400')} maxLength={14} value={f.fssaiNumber}
+              onChange={(e) => set('fssaiNumber', e.target.value.replace(/\D/g, ''))} placeholder="14-digit number" />
+            {f.fssaiNumber && !fssaiOk && <p className="mt-1 text-xs text-red-600">FSSAI number must be 14 digits</p>}
+          </Field>
         </div>
-        <FileUpload className="mt-3" kind="document" value={f.fssaiCertificateUrl} onChange={(u) => set('fssaiCertificateUrl', u)} label="Upload FSSAI certificate" aspect="aspect-[3/1]" />
+        {!fssaiNeeded && <p className="mt-2 text-xs text-amber-700">You can submit now and upload the FSSAI registration later - your kitchen stays under review for food safety until it is verified.</p>}
+        <p className="label mt-3">{fssaiNeeded ? 'FSSAI certificate' : 'FSSAI application acknowledgement (optional)'}</p>
+        <FileUpload kind="document" value={f.fssaiCertificateUrl} onChange={(u) => set('fssaiCertificateUrl', u)} label="Upload FSSAI certificate" aspect="aspect-[16/10]" className="sm:max-w-md" />
       </div>
     </div>
   );

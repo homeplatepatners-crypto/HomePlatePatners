@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, Ban, CheckCircle2, ClipboardCheck, ExternalLink, FileText, Mail, MapPin, Phone, Play, Power, ShieldCheck, Store, XCircle } from 'lucide-react';
+import { BadgeCheck, Ban, CheckCircle2, ClipboardCheck, ExternalLink, FileText, Mail, MapPin, Phone, Play, Power, ShieldCheck, Store, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api, errMsg } from '../../api/client';
 import { useFetch } from '../../components/useFetch';
@@ -186,7 +186,6 @@ export function KitchenDetailAdmin() {
 
   return (
     <div>
-      <Link to="/admin/kitchens" className="inline-flex items-center gap-1 text-sm font-semibold text-charcoal-500 hover:text-brand-700"><ArrowLeft className="h-4 w-4" />Kitchens</Link>
       <div className="card mt-3 overflow-hidden">
         <div className="relative h-40"><img src={k.coverImage || '/images/spices.jpg'} alt="" className="h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-charcoal-900/80 to-transparent" /></div>
         <div className="flex flex-col gap-4 p-5 md:flex-row md:items-center">
@@ -236,6 +235,9 @@ export function KitchenDetailAdmin() {
                   {url ? (url.endsWith('.pdf') ? <a href={url} target="_blank" rel="noreferrer" className="btn-outline mt-3"><FileText className="h-4 w-4" />Open PDF<ExternalLink className="h-3.5 w-3.5" /></a>
                     : <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="" className="mt-3 h-44 w-full rounded-xl object-cover ring-1 ring-black/5" /></a>)
                     : <p className="mt-3 rounded-xl bg-cream-100 p-4 text-center text-sm text-charcoal-400">Not uploaded</p>}
+                  {doc === 'identity' && k.idProofBackUrl && (k.idProofBackUrl.endsWith('.pdf')
+                    ? <a href={k.idProofBackUrl} target="_blank" rel="noreferrer" className="btn-outline mt-2"><FileText className="h-4 w-4" />Open back side (PDF)</a>
+                    : <a href={k.idProofBackUrl} target="_blank" rel="noreferrer" title="Back side"><img src={k.idProofBackUrl} alt="ID back side" className="mt-2 h-44 w-full rounded-xl object-cover ring-1 ring-black/5" /></a>)}
                   {url && <div className="mt-3 flex gap-2"><button className="btn-primary flex-1 py-2" onClick={() => setDoc(doc, 'VERIFIED')}><CheckCircle2 className="h-4 w-4" />Verify</button><button className="btn-outline flex-1 py-2 text-red-600" onClick={() => setDoc(doc, 'REJECTED')}><XCircle className="h-4 w-4" />Reject</button></div>}
                 </div>
               );

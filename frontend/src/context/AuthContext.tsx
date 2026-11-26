@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, tokenStore } from '../api/client';
+import { useLocation } from 'react-router-dom';
+import { api, portalOf, tokenStore } from '../api/client';
 import type { Kitchen, User } from '../types';
 
 interface AuthState {
@@ -39,12 +40,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Reload the session whenever the user moves between portals (customer / kitchen / admin).
+  const portal = portalOf(useLocation().pathname);
   useEffect(() => {
+    setLoading(true); setUser(null); setKitchen(null);
     refresh();
+  }, [portal, refresh]);
+
+  useEffect(() => {
     const onLogout = () => { setUser(null); setKitchen(null); };
     window.addEventListener('homeplate:logout', onLogout);
     return () => window.removeEventListener('homeplate:logout', onLogout);
-  }, [refresh]);
+  }, []);
 
   const login = async (username: string, password: string, portal: 'admin' | 'kitchen' | 'customer') => {
     const { data } = await api.post('/auth/login', { username, password, portal });

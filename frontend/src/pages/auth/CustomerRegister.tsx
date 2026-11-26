@@ -7,31 +7,33 @@ import { api, errMsg } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { Spinner } from '../../components/ui';
 
+/** Simple customer sign-up: name, mobile (OTP), email. Address is set right after on the map. */
 export default function CustomerRegister() {
   const nav = useNavigate();
   const { setSession } = useAuth();
   const cfg = useOtpConfig();
-  const [f, setF] = useState({ fullName: '', username: '', password: '', hometown: '' });
+  const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [phoneOk, setPhoneOk] = useState(false);
   const [emailOk, setEmailOk] = useState(false);
   const [busy, setBusy] = useState(false);
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   const emailNeeded = !!cfg?.emailRequired;
-  const ready = phoneOk && (!emailNeeded || emailOk) && !!email;
+  const emailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+  const ready = fullName.trim().length >= 2 && phoneOk && emailValid && (!emailNeeded || emailOk);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (fullName.trim().length < 2) return toast.error('Please enter your name');
     if (!phoneOk) return toast.error('Please verify your mobile number');
+    if (!emailValid) return toast.error('Please enter a valid email');
     if (emailNeeded && !emailOk) return toast.error('Please verify your email address');
-    if (f.password.length < 6) return toast.error('Password must be at least 6 characters');
     setBusy(true);
     try {
-      const { data } = await api.post('/auth/register/customer', { ...f, phone, email });
+      const { data } = await api.post('/auth/register/customer', { fullName: fullName.trim(), phone, email });
       setSession(data);
-      toast.success('Welcome to HomePlate!');
-      nav('/kitchens');
+      toast.success('Welcome to HomePlate! Now set your delivery address.');
+      nav('/profile?setup=address');
     } catch (err) { toast.error(errMsg(err)); } finally { setBusy(false); }
   };
 
@@ -43,17 +45,13 @@ export default function CustomerRegister() {
       <p className="mt-2 text-sm text-charcoal-500">Already have one? <Link to="/login" className="font-semibold text-brand-700">Login</Link></p>
       <TestModeHint cfg={cfg} />
       <form onSubmit={submit} className="mt-6 space-y-4">
-        <div><label className="label">Full name</label><input className="input" required value={f.fullName} onChange={set('fullName')} placeholder="Your full name" /></div>
-        <OtpField channel="sms" value={phone} setValue={setPhone} verified={phoneOk} setVerified={setPhoneOk} />
+        <div><label className="label">Name</label><input className="input" required autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" /></div>
+        <OtpField channel="sms" purpose="register" value={phone} setValue={setPhone} verified={phoneOk} setVerified={setPhoneOk} />
         {emailNeeded
-          ? <OtpField channel="email" value={email} setValue={setEmail} verified={emailOk} setVerified={setEmailOk} />
-          : <div><label className="label">Email</label><input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value.trim())} placeholder="you@example.com" /></div>}
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className="label">Username</label><input className="input" required minLength={3} autoComplete="username" value={f.username} onChange={set('username')} /></div>
-          <div><label className="label">Password</label><input className="input" type="password" required minLength={6} autoComplete="new-password" value={f.password} onChange={set('password')} placeholder="Min 6 characters" /></div>
-        </div>
-        <div><label className="label">Hometown <span className="font-normal text-charcoal-400">(optional)</span></label><input className="input" value={f.hometown} onChange={set('hometown')} placeholder="e.g. Madurai" /></div>
+          ? <OtpField channel="email" purpose="register" value={email} setValue={setEmail} verified={emailOk} setVerified={setEmailOk} />
+          : <div><label className="label">Email</label><input className="input" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value.trim())} placeholder="you@example.com" /></div>}
         <button className="btn-primary w-full py-3" disabled={busy || !ready}>{busy && <Spinner className="h-4 w-4 text-white" />}Create account</button>
+        <p className="text-center text-xs text-charcoal-400">No password needed - you'll log in with an OTP on your mobile.</p>
       </form>
     </AuthShell>
   );

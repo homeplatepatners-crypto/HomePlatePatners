@@ -36,6 +36,9 @@ public class KitchenController {
     private final KitchenService kitchenService;
     private final NotificationService notify;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.homeplate.service.DailyMenuService dailyMenu;
+
     public KitchenController(CurrentUser current, KitchenRepository kitchens, UserRepository users, MenuItemRepository menu,
                              FoodOrderRepository orders, CookingVideoRepository videos, ReviewRepository reviews,
                              ComplaintRepository complaints, SubscriptionPlanRepository plans,
@@ -66,7 +69,7 @@ public class KitchenController {
             Enums.FoodType foodType,
             String state, String district, String city, String area, String address, String pincode,
             Double latitude, Double longitude, Double deliveryRadiusKm,
-            String idProofType, String idProofNumber, String idProofUrl,
+            String idProofType, String idProofNumber, String idProofUrl, String idProofBackUrl,
             String fssaiNumber, String fssaiType, String fssaiCertificateUrl,
             LocalTime openTime, LocalTime closeTime, String workingDays,
             Boolean breakfastAvailable, Boolean lunchAvailable, Boolean dinnerAvailable,
@@ -108,7 +111,12 @@ public class KitchenController {
         if (p.deliveryRadiusKm() != null) k.setDeliveryRadiusKm(Math.max(1, Math.min(10, p.deliveryRadiusKm())));
         boolean docsChanged = false;
         if (p.idProofType() != null) k.setIdProofType(p.idProofType());
-        if (p.idProofNumber() != null) k.setIdProofNumber(p.idProofNumber());
+        if (p.idProofNumber() != null) k.setIdProofNumber(com.homeplate.service.DocumentRules.normalise(p.idProofNumber()));
+        if (p.idProofBackUrl() != null && !p.idProofBackUrl().equals(k.getIdProofBackUrl())) {
+            k.setIdProofBackUrl(p.idProofBackUrl());
+            k.setIdProofStatus(Enums.DocumentStatus.PENDING);
+            docsChanged = true;
+        }
         if (p.idProofUrl() != null && !p.idProofUrl().equals(k.getIdProofUrl())) {
             k.setIdProofUrl(p.idProofUrl());
             k.setIdProofStatus(Enums.DocumentStatus.PENDING);
@@ -150,7 +158,7 @@ public class KitchenController {
         if (blank(k.getDescription())) missing.add("kitchen description");
         if (blank(k.getAddress()) || blank(k.getArea())) missing.add("address");
         if (k.getLatitude() == null) missing.add("GPS location");
-        if (blank(k.getIdProofUrl())) missing.add("identity document");
+        missing.addAll(com.homeplate.service.DocumentRules.problems(k));
         if (blank(k.getCoverImage())) missing.add("kitchen photo");
         if (!missing.isEmpty()) throw ApiException.badRequest("Please complete: " + String.join(", ", missing));
         k.setStatus(Enums.KitchenStatus.UNDER_REVIEW);
@@ -196,6 +204,7 @@ public class KitchenController {
         MenuItem m = new MenuItem();
         m.setKitchen(current.kitchen());
         copy(in, m);
+        dailyMenu.menuChanged(current.kitchen());
         return menu.save(m);
     }
 
@@ -204,6 +213,7 @@ public class KitchenController {
     public MenuItem updateItem(@PathVariable Long id, @RequestBody MenuItem in) {
         MenuItem m = ownItem(id);
         copy(in, m);
+        dailyMenu.menuChanged(current.kitchen());
         return menu.save(m);
     }
 
@@ -222,6 +232,7 @@ public class KitchenController {
     @Transactional
     public Map<String, Object> deleteItem(@PathVariable Long id) {
         menu.delete(ownItem(id));
+        dailyMenu.menuChanged(current.kitchen());
         return Map.of("deleted", true);
     }
 
@@ -284,6 +295,15 @@ public class KitchenController {
     @PatchMapping("/orders/{id}/status")
     public FoodOrder updateStatus(@PathVariable Long id, @Valid @RequestBody Dtos.StatusUpdate req) {
         return orderService.kitchenUpdateStatus(current.kitchen(), id, req.status(), req.reason());
+    }
+
+    /** Delivery person's live GPS position (sent every few seconds while the order is out for delivery). */
+    @PostMapping("/orders/{id}/location")
+    public Map<String, Object> riderLocation(@PathVariable Long id, @RequestBody Map<String, Double> body) {
+        Double lat = body.get("lat"), lng = body.get("lng");
+        if (lat == null || lng == null) throw ApiException.badRequest("lat and lng are required");
+        FoodOrder o = orderService.updateRiderLocation(current.kitchen(), id, lat, lng);
+        return Map.of("ok", true, "updatedAt", o.getRiderUpdatedAt().toString());
     }
 
     // ---------------- cooking videos

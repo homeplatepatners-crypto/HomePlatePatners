@@ -1,3 +1,4 @@
+import LiveLocationShare from './LiveLocationShare';
 import { useEffect, useState } from 'react';
 import { Bike, Check, ChefHat, Clock, MapPin, Package, Phone, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -80,6 +81,7 @@ export default function OrdersPage() {
                             {next && <button className="btn-primary flex-1 py-2" disabled={busyId === o.id} onClick={() => move(o, next.to)}>{busyId === o.id ? <Spinner className="h-4 w-4 text-white" /> : <next.icon className="h-4 w-4" />}{next.label}</button>}
                             {o.status === 'PLACED' && <button className="btn-outline py-2 text-red-600" onClick={() => setRejecting(o)} aria-label="Reject"><X className="h-4 w-4" /></button>}
                           </div>
+                          {o.status === 'OUT_FOR_DELIVERY' && <div className="mt-2"><LiveLocationShare orderId={o.id} /></div>}
                         </div>
                       );
                     })}

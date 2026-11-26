@@ -36,7 +36,7 @@ export default function ForgotPassword({ portal }: { portal: 'customer' | 'kitch
       <p className="mt-2 text-sm text-charcoal-500">Remembered it? <Link to={loginPath} className="font-semibold text-brand-700">Login</Link></p>
       <TestModeHint cfg={cfg} />
       <form onSubmit={submit} className="mt-6 space-y-4">
-        <OtpField channel="sms" label="Registered mobile number" value={phone} setValue={setPhone} verified={verified} setVerified={setVerified} />
+        <OtpField channel="sms" purpose="reset" label="Registered mobile number" value={phone} setValue={setPhone} verified={verified} setVerified={setVerified} />
         {verified && <>
           <div><label className="label">New password</label><input className="input" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Min 6 characters" /></div>
           <div><label className="label">Confirm password</label><input className="input" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} /></div>

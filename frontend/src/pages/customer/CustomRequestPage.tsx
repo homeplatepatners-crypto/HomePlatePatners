@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlarmClock, ChefHat, Flame, Send, Sparkles } from 'lucide-react';
+import { AlarmClock, CheckCircle2, ChefHat, Circle, Flame, Send, Sparkles } from 'lucide-react';
+import DishSearch from '../../components/DishSearch';
 import toast from 'react-hot-toast';
 import { api, errMsg } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -16,7 +17,6 @@ const SLOTS = [
   { v: 'BREAKFAST', label: 'Breakfast', time: '08:30' }, { v: 'LUNCH', label: 'Lunch', time: '13:00' },
   { v: 'SNACKS', label: 'Evening snacks', time: '17:00' }, { v: 'DINNER', label: 'Dinner', time: '20:00' },
 ] as const;
-const IDEAS = ['Homemade chicken gravy', 'Mutton biryani', 'Sambar rice & poriyal', 'Dal khichdi', 'Fish curry meals', 'Chapati & kurma'];
 
 /** Client-side mirror of the backend cutoff rule (backend is the source of truth). */
 function cutoffMessage(date: string, slot: string, cfg?: PublicConfig | null) {
@@ -42,6 +42,8 @@ export default function CustomRequestPage() {
     requiredDate: '', mealSlot: 'LUNCH', preferredTime: '13:00', instructions: '', budget: '',
     deliveryAddress: user?.address ?? '',
   });
+  // The saved address arrives after login loads - fill it in if the field is still empty.
+  useEffect(() => { if (user?.address) setF((s) => (s.deliveryAddress ? s : { ...s, deliveryAddress: user.address! })); }, [user?.address]);
   const date = f.requiredDate || (lunchPassed ? addDaysISO(1) : todayISO());
   const blocked = useMemo(() => cutoffMessage(date, f.mealSlot, cfg), [date, f.mealSlot, cfg]);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((s) => ({ ...s, [k]: v }));
@@ -79,14 +81,13 @@ export default function CustomRequestPage() {
       <div className="container-x -mt-6 grid gap-6 pb-10 lg:grid-cols-[1fr_340px]">
         <form onSubmit={submit} className="card relative space-y-6 p-6 sm:p-8">
           <div>
-            <Field label="Which dish do you want?">
-              <input className="input text-base" value={f.dishName} onChange={(e) => set('dishName', e.target.value)} placeholder="e.g. Homemade chicken gravy" maxLength={120} />
+            <Field label="Which dish do you want? *">
+              <DishSearch value={f.dishName} onChange={(v) => set('dishName', v)} onPick={(h) => setF((s) => ({ ...s, dishName: h.name, veg: h.veg }))} />
             </Field>
-            <div className="mt-2 flex flex-wrap gap-1.5">{IDEAS.map((i) => <button type="button" key={i} onClick={() => set('dishName', i)} className="chip py-1 text-xs">{i}</button>)}</div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Quantity"><input className="input" value={f.quantity} onChange={(e) => set('quantity', e.target.value)} placeholder="500 g / 2 plates" /></Field>
+            <Field label="Quantity *"><input className="input" value={f.quantity} onChange={(e) => set('quantity', e.target.value)} placeholder="500 g / 2 plates" /></Field>
             <Field label="Serves (people)"><input className="input" type="number" min={1} max={30} value={f.servings} onChange={(e) => set('servings', Number(e.target.value))} /></Field>
             <Field label="Your budget (optional)"><input className="input" type="number" min={0} value={f.budget} onChange={(e) => set('budget', e.target.value)} placeholder="₹" /></Field>
           </div>
@@ -111,7 +112,7 @@ export default function CustomRequestPage() {
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Required date"><input className="input" type="date" min={todayISO()} max={addDaysISO(7)} value={date} onChange={(e) => set('requiredDate', e.target.value)} /></Field>
+            <Field label="Required date *"><input className="input" type="date" min={todayISO()} max={addDaysISO(7)} value={date} onChange={(e) => set('requiredDate', e.target.value)} /></Field>
             <Field label="Meal">
               <select className="input" value={f.mealSlot} onChange={(e) => { const s = SLOTS.find((x) => x.v === e.target.value)!; setF((p) => ({ ...p, mealSlot: s.v, preferredTime: s.time })); }}>
                 {SLOTS.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
@@ -123,7 +124,7 @@ export default function CustomRequestPage() {
           {blocked && <div className="flex gap-3 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800"><AlarmClock className="h-5 w-5 shrink-0" /><div>{blocked} <Link to="/kitchens" className="font-semibold underline">See today's menus</Link></div></div>}
 
           <Field label="Special instructions"><textarea className="input min-h-[90px]" maxLength={1000} value={f.instructions} onChange={(e) => set('instructions', e.target.value)} placeholder="Less oil, bone-in pieces, add 2 chapatis, no coconut…" /></Field>
-          <Field label={`Delivery address · ${location.label}`} hint="Change the area from the location selector at the top.">
+          <Field label={`Delivery address * · ${location.label}`} hint="Change the area from the location selector at the top.">
             <textarea className="input min-h-[70px]" value={f.deliveryAddress} onChange={(e) => set('deliveryAddress', e.target.value)} placeholder="Door no, street, landmark" />
           </Field>
 
@@ -133,6 +134,23 @@ export default function CustomRequestPage() {
         </form>
 
         <aside className="space-y-4">
+          <div className="card p-5 lg:sticky lg:top-24">
+            <h3 className="font-semibold">Your request needs</h3>
+            <ul className="mt-3 space-y-2 text-sm">
+              {[
+                { ok: f.dishName.trim().length >= 3, label: 'Dish name', hint: f.dishName.trim() || 'Search or type the dish' },
+                { ok: f.quantity.trim().length > 0, label: 'Quantity', hint: f.quantity || 'e.g. 500 g / 2 plates' },
+                { ok: !blocked, label: 'Date & meal', hint: blocked ? 'Too late for this slot - pick another date' : `${date} · ${SLOTS.find((s) => s.v === f.mealSlot)?.label}` },
+                { ok: f.deliveryAddress.trim().length >= 8, label: 'Delivery address', hint: f.deliveryAddress.trim() ? 'Added' : 'Door no, street, landmark' },
+                { ok: !!user, label: 'Login', hint: user ? user.fullName : 'Login to send the request' },
+              ].map((c) => (
+                <li key={c.label} className="flex gap-2">
+                  {c.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />}
+                  <span><span className={cx('font-medium', !c.ok && 'text-red-600')}>{c.label}</span><span className="block text-xs text-charcoal-500">{c.hint}</span></span>
+                </li>
+              ))}
+            </ul>
+          </div>
           <div className="card p-5">
             <h3 className="flex items-center gap-2 font-semibold"><ChefHat className="h-5 w-5 text-brand-600" />How it works</h3>
             <ol className="mt-4 space-y-3 text-sm">

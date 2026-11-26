@@ -32,7 +32,7 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/login", "/api/auth/register/**", "/api/auth/otp/**", "/api/auth/password/reset").permitAll()
+                .requestMatchers("/api/auth/login", "/api/auth/register/**", "/api/auth/otp/**", "/api/auth/password/reset", "/api/auth/login/otp").permitAll()
                 .requestMatchers("/api/public/**", "/uploads/**", "/error").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/kitchen/**").hasRole("KITCHEN_OWNER")

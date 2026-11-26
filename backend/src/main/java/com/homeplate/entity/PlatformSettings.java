@@ -30,6 +30,8 @@ public class PlatformSettings {
     /** Days after expiry before an unpaid kitchen is hidden from customers. */
     private Integer gracePeriodDays = 3;
     private boolean requireDailyVideo = true;
+    /** Kitchens can take daily-menu orders only after today's menu is verified. null = on (default). */
+    private Boolean requireMenuVerification = true;
     @Column(length = 120) private String supportPhone = "+91 90000 00000";
     @Column(length = 120) private String supportEmail = "support@homeplate.in";
 }

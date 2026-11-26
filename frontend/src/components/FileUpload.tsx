@@ -41,8 +41,12 @@ export default function FileUpload({ value, onChange, kind = 'image', label, cla
       {value ? (
         <div className={cx('group relative overflow-hidden rounded-2xl bg-cream-100 ring-1 ring-black/5', aspect)}>
           {kind === 'video' ? <video src={value} controls className="h-full w-full bg-black object-contain" />
-            : isPdf ? <a href={value} target="_blank" rel="noreferrer" className="flex h-full flex-col items-center justify-center gap-2 text-sm text-brand-700"><FileText className="h-10 w-10" />View PDF</a>
-            : <img src={value} alt="" className="h-full w-full object-cover" />}
+            : isPdf ? (
+              <div className="flex h-full flex-col">
+                <iframe src={`${value}#toolbar=0&view=FitH`} title="Document preview" className="w-full flex-1 bg-white" />
+                <a href={value} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-1 bg-white py-1.5 text-xs font-semibold text-brand-700"><FileText className="h-3.5 w-3.5" />Open PDF</a>
+              </div>)
+            : <a href={value} target="_blank" rel="noreferrer" title="Open full size"><img src={value} alt="Uploaded preview" className={cx('h-full w-full', kind === 'document' ? 'bg-white object-contain' : 'object-cover')} /></a>}
           <div className="absolute right-2 top-2 flex gap-1.5">
             <button type="button" onClick={() => ref.current?.click()} className="rounded-lg bg-white/95 px-2.5 py-1 text-xs font-semibold shadow">Replace</button>
             <button type="button" onClick={() => onChange('')} className="rounded-lg bg-white/95 p-1 shadow" aria-label="Remove"><X className="h-4 w-4" /></button>

@@ -82,5 +82,10 @@ public class FoodOrder {
     private LocalDateTime outForDeliveryAt;
     private LocalDateTime deliveredAt;
 
+    /** Live position of the delivery person while OUT_FOR_DELIVERY (sent from the kitchen's phone). */
+    private Double riderLatitude;
+    private Double riderLongitude;
+    private LocalDateTime riderUpdatedAt;
+
     private boolean reviewed;
 }

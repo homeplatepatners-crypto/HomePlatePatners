@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { api, errMsg } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { PageLoader, Spinner, cx } from '../../components/ui';
-import { ComplianceSection, KitchenInfoSection, LocationSection, OperationsSection, toForm, toPayload, type KitchenFormState } from './KitchenForm';
+import { ComplianceSection, complianceError, KitchenInfoSection, LocationSection, OperationsSection, toForm, toPayload, type KitchenFormState } from './KitchenForm';
 import { fmtTime } from '../../utils/format';
 
 const STEPS = ['Personal info', 'Kitchen info', 'Address & location', 'Identity & compliance', 'Operations', 'Review & submit'];
@@ -22,7 +22,7 @@ function validate(step: number, f: KitchenFormState): string | null {
     if (f.address.trim().length < 10) return 'Enter the full address';
     if (f.latitude == null) return 'Pin your kitchen location on the map';
   }
-  if (step === 4 && !f.idProofUrl) return 'Upload an identity document';
+  if (step === 4) return complianceError(f);
   if (step === 5 && !f.workingDays.length) return 'Select at least one working day';
   return null;
 }
@@ -107,7 +107,7 @@ export default function Onboarding() {
             <dl className="grid gap-3 sm:grid-cols-2">
               {[
                 ['Mobile', `${user?.phone} ✓ verified`], ['Food type', f.foodType], ['Address', f.address], ['GPS', f.latitude ? `${f.latitude}, ${f.longitude}` : 'Missing'],
-                ['Identity proof', f.idProofUrl ? `${f.idProofType} uploaded` : 'Missing'], ['FSSAI', f.fssaiNumber || 'Not provided'],
+                ['Identity proof', f.idProofUrl ? `${f.idProofType} ${f.idProofNumber} - uploaded${f.idProofBackUrl ? ' (front + back)' : ''}` : 'Missing'], ['FSSAI', f.fssaiNumber || 'Not provided'],
                 ['Hours', `${fmtTime(f.openTime)} – ${fmtTime(f.closeTime)}`], ['Working days', f.workingDays.join(', ')],
                 ['Meals', [f.breakfastAvailable && 'Breakfast', f.lunchAvailable && 'Lunch', f.dinnerAvailable && 'Dinner'].filter(Boolean).join(', ')], ['Capacity', `${f.maxDailyOrders} orders/day`],
               ].map(([k, v]) => <div key={k} className="rounded-xl border border-cream-200 p-3"><dt className="text-xs font-semibold uppercase text-charcoal-400">{k}</dt><dd className="mt-0.5 font-medium">{v}</dd></div>)}

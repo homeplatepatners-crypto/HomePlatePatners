@@ -50,6 +50,7 @@ export default function AdminSettings() {
             <Field label="Custom dinner cutoff"><input className="input" type="time" value={s.customDinnerCutoff.slice(0, 5)} onChange={time('customDinnerCutoff')} /></Field>
           </div>
           <Toggle checked={s.requireDailyVideo} onChange={(v) => setS({ ...s, requireDailyVideo: v })} label="Require daily cooking video from kitchens" />
+          <Toggle checked={s.requireMenuVerification !== false} onChange={(v) => setS({ ...s, requireMenuVerification: v })} label="Verify daily menus (kitchens take orders only after today's menu is verified)" />
         </div>
         <div className="card space-y-4 p-6">
           <h3 className="font-semibold">Support contact</h3>

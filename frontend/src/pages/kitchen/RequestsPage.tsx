@@ -16,7 +16,7 @@ export default function RequestsPage() {
   const [tab, setTab] = useState<'new' | 'quoted' | 'history'>('new');
   const [quoting, setQuoting] = useState<Row | null>(null);
   const [declining, setDeclining] = useState<Row | null>(null);
-  const [q, setQ] = useState({ price: '', prepTimeMinutes: '60', note: '' });
+  const [q, setQ] = useState({ price: '', prepTimeMinutes: '60', note: '', unavailableItems: '' });
   const [busy, setBusy] = useState(false);
 
   if (open.loading) return <PageLoader />;
@@ -27,14 +27,14 @@ export default function RequestsPage() {
 
   const startQuote = (r: Row) => {
     setQuoting(r);
-    setQ({ price: r.myQuote && r.myQuote.price > 0 ? String(r.myQuote.price) : r.request.budget ? String(r.request.budget) : '', prepTimeMinutes: String(r.myQuote?.prepTimeMinutes || 60), note: r.myQuote?.note ?? '' });
+    setQ({ price: r.myQuote && r.myQuote.price > 0 ? String(r.myQuote.price) : r.request.budget ? String(r.request.budget) : '', prepTimeMinutes: String(r.myQuote?.prepTimeMinutes || 60), note: r.myQuote?.note ?? '', unavailableItems: r.myQuote?.unavailableItems ?? '' });
   };
   const submitQuote = async () => {
     if (!quoting) return;
     if (!Number(q.price)) return toast.error('Enter your price');
     setBusy(true);
     try {
-      await api.post(`/kitchen/requests/${quoting.request.id}/quote`, { price: Number(q.price), prepTimeMinutes: Number(q.prepTimeMinutes), note: q.note });
+      await api.post(`/kitchen/requests/${quoting.request.id}/quote`, { price: Number(q.price), prepTimeMinutes: Number(q.prepTimeMinutes), note: q.note, unavailableItems: q.unavailableItems });
       toast.success('Quotation sent to the customer!');
       setQuoting(null); open.reload(true); history.reload(true);
     } catch (e) { toast.error(errMsg(e)); } finally { setBusy(false); }
@@ -90,6 +90,9 @@ export default function RequestsPage() {
           <p className="rounded-xl bg-cream-100 p-3 text-sm">{quoting?.request.quantity} · {quoting?.request.spiceLevel} · {quoting && mealLabel[quoting.request.mealSlot]} on {fmtDate(quoting?.request.requiredDate)}</p>
           <Field label="Your price for this dish (₹)" hint="Delivery charge and platform fee are added separately for the customer."><input className="input text-lg font-semibold" type="number" min={1} value={q.price} onChange={(e) => setQ({ ...q, price: e.target.value })} autoFocus /></Field>
           <Field label="Preparation time (minutes)"><input className="input" type="number" min={5} value={q.prepTimeMinutes} onChange={(e) => setQ({ ...q, prepTimeMinutes: e.target.value })} /></Field>
+          <Field label="Items you can't provide / substitutions (optional)" hint="Shown clearly to the customer before they choose your offer.">
+            <input className="input" value={q.unavailableItems} onChange={(e) => setQ({ ...q, unavailableItems: e.target.value })} placeholder="e.g. No country chicken today - will use broiler" />
+          </Field>
           <Field label="Message to customer"><textarea className="input" value={q.note} onChange={(e) => setQ({ ...q, note: e.target.value })} placeholder="I'll cook it Chettinad style with country chicken…" /></Field>
         </div>
       </Modal>

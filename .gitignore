@@ -7,3 +7,4 @@ frontend/dist/
 .vscode/
 backend/src/main/resources/application-secrets.yml
 frontend/*.tsbuildinfo
+.claude/

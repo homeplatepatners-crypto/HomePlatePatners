@@ -1,6 +1,6 @@
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { Circle, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { useEffect, type ReactNode } from 'react';
 import { LocateFixed } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -54,8 +54,8 @@ function ClickPicker({ onPick }: { onPick: (lat: number, lng: number) => void })
 }
 
 /** GPS location picker: click the map, drag the pin or use the device location. */
-export function MapPicker({ value, onChange, radiusKm, height = 'h-72' }:
-  { value: { lat?: number | null; lng?: number | null }; onChange: (lat: number, lng: number) => void; radiusKm?: number; height?: string }) {
+export function MapPicker({ value, onChange, radiusKm, height = 'h-72', pinLabel = 'Kitchen', gpsLabel = 'Use my current location' }:
+  { value: { lat?: number | null; lng?: number | null }; onChange: (lat: number, lng: number) => void; radiusKm?: number; height?: string; pinLabel?: string; gpsLabel?: string }) {
   const lat = value.lat ?? 11.0168;
   const lng = value.lng ?? 76.9558;
   const useGps = () => {
@@ -74,7 +74,7 @@ export function MapPicker({ value, onChange, radiusKm, height = 'h-72' }:
           <ClickPicker onPick={onChange} />
           {value.lat != null && (
             <>
-              <Marker position={[lat, lng]} icon={kitchenIcon('Kitchen')} draggable
+              <Marker position={[lat, lng]} icon={pinLabel === 'Kitchen' ? kitchenIcon(pinLabel) : homeIcon} draggable
                 eventHandlers={{ dragend: (e) => { const ll = (e.target as L.Marker).getLatLng(); onChange(+ll.lat.toFixed(6), +ll.lng.toFixed(6)); } }} />
               {radiusKm && <Circle center={[lat, lng]} radius={radiusKm * 1000} pathOptions={{ color: '#2E9455', weight: 1, fillOpacity: 0.07 }} />}
             </>
@@ -82,7 +82,7 @@ export function MapPicker({ value, onChange, radiusKm, height = 'h-72' }:
         </MapContainer>
         <button type="button" onClick={useGps}
           className="absolute right-3 top-3 z-[500] inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-brand-700 shadow-lift hover:bg-brand-50">
-          <LocateFixed className="h-4 w-4" /> Use my GPS
+          <LocateFixed className="h-4 w-4" /> {gpsLabel}
         </button>
       </div>
       <p className="text-xs text-charcoal-400">
@@ -90,4 +90,54 @@ export function MapPicker({ value, onChange, radiusKm, height = 'h-72' }:
       </p>
     </div>
   );
+}
+
+const riderIcon = L.divIcon({
+  className: '',
+  html: `<div style="transform:translate(-50%,-50%);width:38px;height:38px;border-radius:9999px;background:#F07315;border:3px solid #fff;box-shadow:0 4px 14px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:18px">🛵</div>`,
+  iconSize: [0, 0],
+});
+
+function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  const key = points.map((p) => p.join(',')).join('|');
+  useEffect(() => {
+    if (points.length === 1) map.setView(points[0], 15);
+    else if (points.length > 1) map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 16 });
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
+/** Live delivery map: kitchen, customer and the moving delivery partner with the remaining route line. */
+export function LiveTrackingMap({ kitchen, home, rider, height = 'h-80' }: {
+  kitchen?: { lat?: number | null; lng?: number | null; name: string };
+  home?: { lat?: number | null; lng?: number | null };
+  rider?: { lat?: number | null; lng?: number | null } | null;
+  height?: string;
+}) {
+  const pts: [number, number][] = [];
+  const k = kitchen?.lat != null && kitchen?.lng != null ? [kitchen.lat, kitchen.lng] as [number, number] : null;
+  const h = home?.lat != null && home?.lng != null ? [home.lat, home.lng] as [number, number] : null;
+  const r = rider?.lat != null && rider?.lng != null ? [rider.lat, rider.lng] as [number, number] : null;
+  [k, h, r].forEach((p) => p && pts.push(p));
+  const center = r ?? h ?? k ?? [11.0168, 76.9558];
+  return (
+    <div className={`${height} overflow-hidden rounded-2xl ring-1 ring-black/5`}>
+      <MapContainer center={center} zoom={14} scrollWheelZoom={false} className="h-full w-full">
+        <TileLayer url={TILE} attribution={ATTR} />
+        <FitBounds points={pts} />
+        {k && <Marker position={k} icon={kitchenIcon(kitchen!.name)} />}
+        {h && <Marker position={h} icon={homeIcon} />}
+        {r && h && <Polyline positions={[r, h]} pathOptions={{ color: '#F07315', weight: 4, dashArray: '8 8' }} />}
+        {r && <Marker position={r} icon={riderIcon} />}
+      </MapContainer>
+    </div>
+  );
+}
+
+/** Straight-line distance in km. */
+export function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const x = Math.sin(rad(bLat - aLat) / 2) ** 2 + Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(rad(bLng - aLng) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(x));
 }

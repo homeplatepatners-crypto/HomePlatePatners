@@ -7,20 +7,24 @@ Three portals on one backend:
 
 | Portal | URL | Login |
 |---|---|---|
-| Customer | http://localhost:5173 → Login | self sign-up with mobile OTP (+ email OTP when email is configured) |
-| Kitchen Owner | http://localhost:5173/kitchen/register | self sign-up with OTP, then 6-step onboarding + admin approval |
-| Super Admin | http://localhost:5173/admin/login | `owner` / `owner` (the only built-in account - change it before going live) |
+| Customer | `/` → Login | sign-up with name + mobile OTP + email; login with mobile OTP |
+| Kitchen Owner | `/kitchen/register` | sign-up with OTP, then 6-step onboarding + admin approval |
+| Super Admin | `/admin/login` | `owner` / `owner` (the only built-in account - change it before going live) |
 
-Forgot password: `/forgot-password` and `/kitchen/forgot-password` (OTP to the registered mobile).
+App URL: **http://localhost:5173** (backend API on http://localhost:8090).
+Testing without SMS: any mobile **9000000002 - 9000000999** accepts OTP **123456**.
 
-## Tech stack
+## Get the code
 
-- **Backend:** Java 17 · Spring Boot 3.5 · Spring Security (JWT) · Spring Data JPA · MySQL 8
-- **Frontend:** React 18 · TypeScript · Vite · Tailwind CSS · React Router · Recharts · Lucide icons · Leaflet (OpenStreetMap)
+```bash
+git clone https://github.com/homeplatepatners-crypto/HomePlatePatners.git
+cd HomePlatePatners
+git checkout dinesh/homeplate-dev
+```
 
 ## Run it
 
-Requirements: JDK 17+ (you have 25), Node 18+, MySQL running on `localhost:3306`.
+Requirements: JDK 17+, Node 18+, MySQL running on `localhost:3306`.
 
 1. **Backend** (port **8090** — 8080 is used by another app on this machine)
    Double-click `start-backend.bat`, or:
@@ -67,8 +71,16 @@ Requirements: JDK 17+ (you have 25), Node 18+, MySQL running on `localhost:3306`
   presented as supporting evidence, not a safety guarantee.
 - **Revenue (hybrid model):** subscription plans + configurable commission % on food total + small platform fee.
   Kitchen earning = food total − commission + delivery charge (self-delivery). Coupons are platform-funded.
-- **Admin:** dashboards, kitchen & document verification, video reviews, orders, custom requests, subscriptions & plans,
-  revenue, offers, CSV reports (today / week / month / custom range), complaints, platform settings.
+- **Daily menu verification:** the kitchen publishes today's menu, the admin verifies it; until then the kitchen can't take
+  daily-menu orders (toggle in Admin -> Settings). Editing a dish sends the menu back for verification.
+- **Offers & coupons:** live offers shown to customers; the best eligible offer is applied automatically in the cart.
+- **Meal subscriptions:** kitchens publish weekly / monthly meal plans; customers subscribe, pause (days are added back)
+  or cancel; kitchens get a "today's deliveries" list.
+- **Live delivery tracking:** the kitchen shares the delivery phone's GPS while the order is out for delivery; the customer
+  sees the moving rider, distance and ETA on a map.
+- **Notifications:** in-app bell for order confirmations / status updates, offers, menu verification, subscriptions.
+- **Admin:** dashboards, kitchen & document verification, daily menus, video reviews, orders, custom requests,
+  kitchen subscriptions, customer meal plans, revenue, offers, CSV reports, complaints, platform settings.
 
 ## Integration points (ready for later)
 
@@ -81,7 +93,8 @@ Requirements: JDK 17+ (you have 25), Node 18+, MySQL running on `localhost:3306`
 - **Test numbers (on by default):** any mobile `9000000002`-`9000000999` registers with OTP `123456`, no SMS sent -
   works for customers and kitchen partners (one account per number). Change with `homeplate.otp.test-numbers`
   (or env `OTP_TEST_NUMBERS`). **Production: set `OTP_TEST_NUMBERS=` (empty).**
-- **Ports:** backend `SERVER_PORT` (default 8090); frontend proxy follows `BACKEND_PORT` (default 8090).
+- **Ports:** backend `SERVER_PORT` (default 8090); dev frontend proxy follows `BACKEND_PORT` (default 8090).
+- **Configuration:** every secret can also be set as an environment variable (`DB_PASSWORD`, `JWT_SECRET`, `TWILIO_*`, `OTP_TEST_NUMBERS`, ...).
 - **Dev mode:** `DEV_OTP=true` shows the OTP on screen for channels without a provider (never in production).
 - **Payments:** `OrderService.pay` / `SubscriptionService.subscribe` are mock gateways (test mode). Replace with Razorpay
   checkout + signature verification.

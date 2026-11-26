@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { BarChart3, ChefHat, ClipboardList, CreditCard, LayoutDashboard, MessageSquareQuote, Settings, Store, UtensilsCrossed, Video } from 'lucide-react';
+import { BarChart3, ChefHat, Repeat, ClipboardList, CreditCard, LayoutDashboard, MessageSquareQuote, Settings, Store, UtensilsCrossed, Video } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout, { type NavItem } from '../../layouts/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
@@ -17,6 +17,7 @@ import SubscriptionPage from './SubscriptionPage';
 import ReviewsPage from './ReviewsPage';
 import ProfilePage from './ProfilePage';
 import SettingsPage from './SettingsPage';
+import MealPlansPage from './MealPlansPage';
 
 export default function KitchenPortal() {
   const { kitchen, refresh } = useAuth();
@@ -44,6 +45,7 @@ export default function KitchenPortal() {
     { to: '/kitchen/menu', label: 'Daily Menu', icon: UtensilsCrossed },
     { to: '/kitchen/requests', label: 'Custom Food Requests', icon: ChefHat, badge: counts.requests },
     { to: '/kitchen/orders', label: 'Orders', icon: ClipboardList, badge: counts.orders },
+    { to: '/kitchen/meal-plans', label: 'Meal Plans & Subscribers', icon: Repeat },
     { to: '/kitchen/videos', label: 'Cooking Videos', icon: Video },
     { to: '/kitchen/earnings', label: 'Earnings', icon: BarChart3 },
     { to: '/kitchen/subscription', label: 'Subscription', icon: CreditCard },
@@ -76,6 +78,7 @@ export default function KitchenPortal() {
         <Route path="menu" element={<MenuPage />} />
         <Route path="requests" element={<RequestsPage />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="meal-plans" element={<MealPlansPage />} />
         <Route path="videos" element={<VideosPage />} />
         <Route path="earnings" element={<EarningsPage />} />
         <Route path="subscription" element={<SubscriptionPage />} />

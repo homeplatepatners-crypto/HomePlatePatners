@@ -74,6 +74,13 @@ public class Kitchen {
     @Column(length = 40) private String idProofType;
     @Column(length = 40) private String idProofNumber;
     @Column(length = 500) private String idProofUrl;
+    @Column(length = 500) private String idProofBackUrl;
+
+    // Daily menu verification (see DailyMenuService)
+    private java.time.LocalDate menuPublishedDate;
+    private java.time.LocalDateTime menuPublishedAt;
+    private java.time.LocalDate menuVerifiedDate;
+    @Column(length = 300) private String menuRemarks;
     @Enumerated(EnumType.STRING) @Column(length = 20)
     private Enums.DocumentStatus idProofStatus = Enums.DocumentStatus.PENDING;
 

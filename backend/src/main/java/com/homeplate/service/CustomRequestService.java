@@ -29,6 +29,9 @@ public class CustomRequestService {
     private final OrderService orderService;
     private final NotificationService notify;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private InboxService inbox;
+
     public CustomRequestService(CustomRequestRepository requests, QuotationRepository quotes, KitchenRepository kitchens,
                                 FoodOrderRepository orders, SettingsService settings, KitchenService kitchenService,
                                 OrderService orderService, NotificationService notify) {
@@ -87,7 +90,12 @@ public class CustomRequestService {
         for (Kitchen k : eligible) {
             notify.sendSms(k.getOwner().getPhone(), "HomePlate: New custom request near you - " + r.getDishName()
                     + " (" + r.getQuantity() + ") for " + r.getMealSlot().name().toLowerCase() + ". Send your quote!");
+            inbox.push(k.getOwner(), "REQUEST", "New dish request: " + r.getDishName(),
+                    r.getQuantity() + " for " + r.getMealSlot().name().toLowerCase() + " on " + r.getRequiredDate() + ". Send your quote.", "/kitchen/requests");
         }
+        inbox.push(customer, "REQUEST", "Request " + r.getRequestNumber() + " sent",
+                eligible.isEmpty() ? "No kitchen near you can take this right now - we'll keep it open for new kitchens."
+                        : "Sent to " + eligible.size() + " nearby kitchen(s). You'll be notified as offers come in.", "/my-requests/" + r.getId());
         return r;
     }
 
@@ -155,6 +163,7 @@ public class CustomRequestService {
         q.setPrice(req.price());
         q.setPrepTimeMinutes(req.prepTimeMinutes());
         q.setNote(req.note());
+        q.setUnavailableItems(req.unavailableItems() == null || req.unavailableItems().isBlank() ? null : req.unavailableItems().trim());
         q.setStatus(Enums.QuotationStatus.PENDING);
         q.setDistanceKm(Geo.distanceKm(r.getLatitude(), r.getLongitude(), k.getLatitude(), k.getLongitude()));
         q.setCreatedAt(LocalDateTime.now());
@@ -164,6 +173,9 @@ public class CustomRequestService {
                 .filter(x -> x.getStatus() != Enums.QuotationStatus.DECLINED).count());
         notify.sendSms(r.getCustomer().getPhone(), "HomePlate: " + k.getName() + " offered to cook your "
                 + r.getDishName() + " for Rs." + req.price() + ". Compare offers in the app.");
+        inbox.push(r.getCustomer(), "OFFER", "New offer for " + r.getDishName(),
+                k.getName() + " can cook it for Rs." + req.price() + (req.prepTimeMinutes() == null ? "" : ", ready in " + req.prepTimeMinutes() + " min") + ".",
+                "/my-requests/" + r.getId());
         return q;
     }
 
@@ -225,7 +237,7 @@ public class CustomRequestService {
         item.setQuantity(1);
         item.setLineTotal(chosen.getPrice());
         o.getItems().add(item);
-        OrderService.Totals t = orderService.computeTotals(chosen.getPrice(), null);
+        OrderService.Totals t = orderService.computeTotals(chosen.getPrice(), "NONE");
         o.setFoodTotal(t.foodTotal());
         o.setDeliveryCharge(t.deliveryCharge());
         o.setPlatformFee(t.platformFee());
@@ -254,6 +266,7 @@ public class CustomRequestService {
         r.setOrderId(o.getId());
         r.setStatus(RequestStatus.OFFER_SELECTED);
         notify.sendSms(k.getOwner().getPhone(), "HomePlate: Your offer for " + r.getDishName() + " was selected! Awaiting customer payment.");
+        inbox.push(k.getOwner(), "OFFER", "Your offer was selected!", r.getDishName() + " for " + r.getRequiredDate() + " - waiting for customer payment.", "/kitchen/requests");
         return o;
     }
 
@@ -276,6 +289,13 @@ public class CustomRequestService {
                     .filter(q -> q.getStatus() != Enums.QuotationStatus.DECLINED).toList();
             m.put("offerCount", qs.size());
             m.put("lowestOffer", qs.stream().map(Quotation::getPrice).min(BigDecimal::compareTo).orElse(null));
+            m.put("fastestPrepMinutes", qs.stream().map(Quotation::getPrepTimeMinutes).filter(java.util.Objects::nonNull).min(Integer::compareTo).orElse(null));
+            if (r.getSelectedQuotationId() != null) {
+                quotes.findById(r.getSelectedQuotationId()).ifPresent(sel -> {
+                    m.put("selectedPrepMinutes", sel.getPrepTimeMinutes());
+                    m.put("selectedKitchen", sel.getKitchen().getName());
+                });
+            }
             m.put("order", r.getOrderId() == null ? null : orders.findById(r.getOrderId()).orElse(null));
             out.add(m);
         }

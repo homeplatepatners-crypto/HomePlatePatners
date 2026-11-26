@@ -9,4 +9,5 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     List<MenuItem> findByKitchenIdOrderByMealTypeAscIdAsc(Long kitchenId);
     List<MenuItem> findByKitchenIdAndAvailableTrueOrderByMealTypeAscIdAsc(Long kitchenId);
     List<MenuItem> findByTodaySpecialTrueAndAvailableTrue();
+    List<MenuItem> findTop200ByNameContainingIgnoreCaseOrCategoryContainingIgnoreCase(String name, String category);
 }

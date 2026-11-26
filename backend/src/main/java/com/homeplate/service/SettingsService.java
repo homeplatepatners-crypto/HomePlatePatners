@@ -33,6 +33,7 @@ public class SettingsService {
         if (in.getCustomDinnerCutoff() != null) s.setCustomDinnerCutoff(in.getCustomDinnerCutoff());
         if (in.getGracePeriodDays() != null) s.setGracePeriodDays(in.getGracePeriodDays());
         s.setRequireDailyVideo(in.isRequireDailyVideo());
+        if (in.getRequireMenuVerification() != null) s.setRequireMenuVerification(in.getRequireMenuVerification());
         if (in.getSupportPhone() != null) s.setSupportPhone(in.getSupportPhone());
         if (in.getSupportEmail() != null) s.setSupportEmail(in.getSupportEmail());
         return repo.save(s);

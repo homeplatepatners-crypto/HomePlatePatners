@@ -22,6 +22,9 @@ public class PublicController {
     private final SubscriptionPlanRepository plans;
     private final ReviewRepository reviews;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.homeplate.service.OrderService orderService;
+
     public PublicController(KitchenService kitchens, SettingsService settings, SubscriptionPlanRepository plans,
                             ReviewRepository reviews) {
         this.kitchens = kitchens;
@@ -95,5 +98,16 @@ public class PublicController {
     @GetMapping("/plans")
     public List<SubscriptionPlan> plans() {
         return plans.findByActiveTrueOrderByPriceAsc();
+    }
+
+    /** Offers & coupons customers can use right now. */
+    @GetMapping("/offers")
+    public List<com.homeplate.entity.Offer> offers() { return orderService.liveOffers(); }
+
+    /** Search dishes in nearby kitchens: available today vs. on menus but unavailable. */
+    @GetMapping("/dishes/search")
+    public Map<String, Object> searchDishes(@RequestParam String q, @RequestParam(required = false) Double lat,
+                                            @RequestParam(required = false) Double lng) {
+        return kitchens.searchDishes(q, lat, lng);
     }
 }

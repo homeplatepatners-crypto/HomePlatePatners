@@ -26,6 +26,9 @@ public class KitchenService {
     private final SubscriptionService subscriptions;
     private final SettingsService settings;
 
+    @org.springframework.beans.factory.annotation.Autowired @org.springframework.context.annotation.Lazy
+    private DailyMenuService dailyMenu;
+
     public KitchenService(KitchenRepository kitchens, MenuItemRepository menu, ReviewRepository reviews,
                           CookingVideoRepository videos, ComplaintRepository complaints, FoodOrderRepository orders,
                           SubscriptionService subscriptions, SettingsService settings) {
@@ -126,7 +129,10 @@ public class KitchenService {
         boolean open = isOpenNow(k);
         m.put("openNow", open);
         m.put("acceptingOrders", k.isAcceptingOrders());
-        m.put("acceptingNow", open && k.isAcceptingOrders());
+        boolean menuReady = dailyMenu.ready(k);
+        m.put("menuReady", menuReady);
+        m.put("menuStatus", dailyMenu.status(k));
+        m.put("acceptingNow", open && k.isAcceptingOrders() && menuReady);
         m.put("todaySpecial", k.getTodaySpecial());
         m.put("verified", k.getIdProofStatus() == Enums.DocumentStatus.VERIFIED);
         m.put("fssaiVerified", k.getFssaiStatus() == Enums.DocumentStatus.VERIFIED);
@@ -225,5 +231,46 @@ public class KitchenService {
 
     public static String dayCode(DayOfWeek d) {
         return d.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).toUpperCase();
+    }
+
+    /**
+     * Dish search for the "Request a dish" page: which nearby kitchens have it available today,
+     * and which have it on their menu but can't serve it now (with the reason).
+     */
+    public Map<String, Object> searchDishes(String q, Double lat, Double lng) {
+        List<Map<String, Object>> available = new ArrayList<>(), unavailable = new ArrayList<>();
+        String term = q == null ? "" : q.trim();
+        if (term.length() >= 2) {
+            double maxRadius = settings.get().getDiscoveryRadiusKm();
+            for (MenuItem i : menu.findTop200ByNameContainingIgnoreCaseOrCategoryContainingIgnoreCase(term, term)) {
+                Kitchen k = i.getKitchen();
+                if (!isVisible(k)) continue;
+                Double d = Geo.distanceKm(lat, lng, k.getLatitude(), k.getLongitude());
+                double radius = Math.min(maxRadius, Optional.ofNullable(k.getDeliveryRadiusKm()).orElse(maxRadius));
+                if (d != null && d > radius) continue;
+                String reason = null;
+                if (!i.isAvailable()) reason = "Not on today's menu";
+                else if (i.getQuantityAvailable() != null && i.getQuantityAvailable() <= 0) reason = "Sold out today";
+                else if (!dailyMenu.ready(k)) reason = "Today's menu awaiting verification";
+                else if (!k.isAcceptingOrders()) reason = "Kitchen paused orders";
+                else if (!isOpenNow(k)) reason = "Kitchen closed now";
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("itemId", i.getId());
+                m.put("name", i.getName());
+                m.put("price", i.getOfferPrice() != null ? i.getOfferPrice() : i.getPrice());
+                m.put("veg", i.isVeg());
+                m.put("imageUrl", i.getImageUrl());
+                m.put("mealType", i.getMealType());
+                m.put("kitchenId", k.getId());
+                m.put("kitchenName", k.getName());
+                m.put("distanceKm", d);
+                m.put("reason", reason);
+                (reason == null ? available : unavailable).add(m);
+            }
+        }
+        Comparator<Map<String, Object>> byDist = Comparator.comparing(m -> Optional.ofNullable((Double) m.get("distanceKm")).orElse(999.0));
+        available.sort(byDist);
+        unavailable.sort(byDist);
+        return Map.of("query", term, "available", available.stream().limit(8).toList(), "unavailable", unavailable.stream().limit(8).toList());
     }
 }

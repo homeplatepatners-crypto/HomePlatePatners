@@ -15,6 +15,7 @@ import Cart from './pages/customer/Cart';
 import Orders from './pages/customer/Orders';
 import OrderTracking from './pages/customer/OrderTracking';
 import Profile from './pages/customer/Profile';
+import MySubscriptions from './pages/customer/MySubscriptions';
 // Auth
 import LoginPage from './pages/auth/LoginPage';
 import CustomerRegister from './pages/auth/CustomerRegister';
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="orders" element={<ProtectedRoute role="CUSTOMER"><Orders /></ProtectedRoute>} />
           <Route path="orders/:id" element={<ProtectedRoute role="CUSTOMER"><OrderTracking /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute role="CUSTOMER"><Profile /></ProtectedRoute>} />
+          <Route path="subscriptions" element={<ProtectedRoute role="CUSTOMER"><MySubscriptions /></ProtectedRoute>} />
         </Route>
 
         <Route path="/login" element={<LoginPage portal="customer" />} />
